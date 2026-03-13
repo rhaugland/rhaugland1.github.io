@@ -2,6 +2,7 @@ import Redis from "ioredis";
 import { logger } from "./logger";
 import { listenerQueue, analystQueue, builderQueue, reviewerQueue, postmortemQueue } from "./queues";
 import { createCoachingWorker } from "./coaching";
+import { startCoachingControlListener } from "./coaching-control";
 
 async function main() {
   logger.info("slushie worker starting...");
@@ -25,6 +26,9 @@ async function main() {
   // start coaching worker
   const coachingWorker = createCoachingWorker();
   logger.info("coaching worker registered");
+
+  // start coaching control listener
+  startCoachingControlListener();
 
   logger.info("slushie worker is running. waiting for events...");
 
