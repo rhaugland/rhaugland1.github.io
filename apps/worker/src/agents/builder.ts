@@ -8,6 +8,8 @@ import {
   type SlushieEvent,
 } from "@slushie/events";
 import { builderPrompt, builderPatchPrompt } from "@slushie/agents";
+import { renderManifest } from "@slushie/prototype-kit";
+import type { PrototypeManifest } from "@slushie/prototype-kit";
 import { invokeClaudeCode } from "../claude";
 import { publishEvent } from "../publish";
 import { createAgentLogger } from "../logger";
@@ -100,6 +102,14 @@ async function handleBuildSpecReady(event: BuildSpecReadyEvent): Promise<void> {
   const manifestContent = await readWorkspaceFile(manifestPath);
   const manifest = JSON.parse(manifestContent);
 
+  // render the manifest into a static next.js prototype
+  const prototypeOutputDir = `${workspace.root}/prototype-v${version}`;
+  const renderResult = await renderManifest(manifest as PrototypeManifest, prototypeOutputDir);
+  log.info(
+    { pageCount: renderResult.pageCount, endpointCount: renderResult.endpointCount },
+    "prototype rendered from manifest"
+  );
+
   // save to database
   const buildSpec = await prisma.buildSpec.findFirstOrThrow({
     where: { id: event.data.buildSpecId },
@@ -165,6 +175,14 @@ async function handleBuildSpecUpdated(event: BuildSpecUpdatedEvent): Promise<voi
   // read patched manifest
   const manifestContent = await readWorkspaceFile(workspace.manifestPath(version));
   const manifest = JSON.parse(manifestContent);
+
+  // render the patched manifest
+  const prototypeOutputDir = `${workspace.root}/prototype-v${version}`;
+  const renderResult = await renderManifest(manifest as PrototypeManifest, prototypeOutputDir);
+  log.info(
+    { pageCount: renderResult.pageCount, endpointCount: renderResult.endpointCount },
+    "patched prototype rendered from manifest"
+  );
 
   // find the build spec for this version
   const pipelineRun = await prisma.pipelineRun.findUniqueOrThrow({
