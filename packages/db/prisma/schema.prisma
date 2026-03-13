@@ -112,6 +112,7 @@ model Tracker {
   id            String   @id @default(cuid())
   pipelineRunId String   @unique
   slug          String   @unique
+  prototypeNanoid String?  @unique
   currentStep   Int      @default(1)
   steps         Json?
   notifiedAt    DateTime?
@@ -142,4 +143,16 @@ model AgentSkill {
   createdAt             DateTime @default(now())
 
   @@unique([agentType, version])
+}
+
+model NotificationMessage {
+  id            String   @id @default(cuid())
+  pipelineRunId String
+  clientName    String
+  message       String   @db.Text
+  trackerUrl    String?
+  prototypeUrl  String?
+  createdAt     DateTime @default(now())
+
+  @@index([pipelineRunId])
 }
