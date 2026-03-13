@@ -1,2 +1,3 @@
-// agent prompts and context templates — populated in plan 3
-export {};
+export { analystPrompt, analystConsultationAnswerPrompt, analystSpecUpdatePrompt } from "./prompts/analyst";
+export { builderPrompt, builderDesignQuestionPrompt, builderPatchPrompt } from "./prompts/builder";
+export { reviewerPrompt } from "./prompts/reviewer";
