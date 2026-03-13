@@ -27,14 +27,13 @@ export function createEventQueue(name: string) {
       removeOnComplete: 1000,
       removeOnFail: 5000,
     },
-    settings: {
-      backoffStrategy: (attemptsMade: number) => {
-        // spec: 1s, 10s, 60s
-        const delays = [1000, 10000, 60000];
-        return delays[attemptsMade - 1] ?? 60000;
-      },
-    },
   });
+}
+
+// Custom backoff: 1s, 10s, 60s
+function slushieBackoffStrategy(attemptsMade: number): number {
+  const delays = [1000, 10000, 60000];
+  return delays[attemptsMade - 1] ?? 60000;
 }
 
 export function createEventWorker(
@@ -46,7 +45,12 @@ export function createEventWorker(
     async (job: Job<SlushieEvent>) => {
       await handler(job.data);
     },
-    { connection: DEFAULT_REDIS }
+    {
+      connection: DEFAULT_REDIS,
+      settings: {
+        backoffStrategy: slushieBackoffStrategy,
+      },
+    }
   );
 }
 
