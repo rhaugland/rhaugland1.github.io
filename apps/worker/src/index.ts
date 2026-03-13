@@ -1,8 +1,16 @@
 import Redis from "ioredis";
 import { logger } from "./logger";
-import { listenerQueue, analystQueue, builderQueue, reviewerQueue, postmortemQueue } from "./queues";
-import { createCoachingWorker } from "./coaching";
-import { startCoachingControlListener } from "./coaching-control";
+import {
+  listenerQueue,
+  analystQueue,
+  builderQueue,
+  reviewerQueue,
+  postmortemQueue,
+} from "./queues";
+import { createAnalystWorker } from "./agents/analyst";
+import { createBuilderWorker } from "./agents/builder";
+import { createReviewerWorker } from "./agents/reviewer";
+import { createPipelineOrchestrator } from "./agents/pipeline";
 
 async function main() {
   logger.info("slushie worker starting...");
@@ -23,19 +31,39 @@ async function main() {
   const queues = [listenerQueue, analystQueue, builderQueue, reviewerQueue, postmortemQueue];
   logger.info({ queues: queues.map((q) => q.name) }, "queues registered");
 
-  // start coaching worker
-  const coachingWorker = createCoachingWorker();
-  logger.info("coaching worker registered");
+  // start agent workers
+  const analystWorker = createAnalystWorker();
+  const builderWorker = createBuilderWorker();
+  const reviewerWorker = createReviewerWorker();
+  const pipelineOrchestrator = createPipelineOrchestrator();
 
-  // start coaching control listener
-  startCoachingControlListener();
+  const workers = [analystWorker, builderWorker, reviewerWorker, pipelineOrchestrator];
 
-  logger.info("slushie worker is running. waiting for events...");
+  for (const w of workers) {
+    w.on("failed", (job, err) => {
+      logger.error(
+        { queue: w.name, jobId: job?.id, error: err.message },
+        "worker job failed"
+      );
+    });
+
+    w.on("completed", (job) => {
+      logger.info(
+        { queue: w.name, jobId: job?.id },
+        "worker job completed"
+      );
+    });
+  }
+
+  logger.info(
+    { workers: workers.map((w) => w.name) },
+    "slushie worker is running. all agents registered."
+  );
 
   // graceful shutdown
   const shutdown = async () => {
     logger.info("shutting down workers...");
-    await coachingWorker.close();
+    await Promise.all(workers.map((w) => w.close()));
     process.exit(0);
   };
   process.on("SIGTERM", shutdown);
