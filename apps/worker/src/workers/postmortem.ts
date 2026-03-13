@@ -1,5 +1,5 @@
 import { Worker, Job } from "bullmq";
-import { prisma } from "@slushie/db";
+import { prisma, Prisma } from "@slushie/db";
 import { invokeClaudeCode } from "../claude";
 import { publishEvent } from "../publish";
 import { createAgentLogger } from "../logger";
@@ -102,18 +102,19 @@ export function createPostmortemWorker() {
       const historicalPostmortems = await prisma.postmortem.findMany({
         where: {
           id: { not: data.postmortemId },
-          employeeFeedback: { not: null },
+          employeeFeedback: { not: Prisma.DbNull },
         },
         orderBy: { createdAt: "desc" },
         take: 10,
-        include: {
-          pipelineRun: {
-            include: {
-              client: true,
-            },
-          },
-        },
       });
+
+      // load pipeline runs with clients for historical postmortems
+      const historicalRunIds = historicalPostmortems.map((pm) => pm.pipelineRunId);
+      const historicalRuns = await prisma.pipelineRun.findMany({
+        where: { id: { in: historicalRunIds } },
+        include: { client: true },
+      });
+      const runsByIdMap = new Map(historicalRuns.map((r) => [r.id, r]));
 
       // 4. prepare working directory with all artifacts
       const workDir = fs.mkdtempSync(
@@ -165,14 +166,17 @@ export function createPostmortemWorker() {
       fs.writeFileSync(
         path.join(workDir, "historical-postmortems.json"),
         JSON.stringify(
-          historicalPostmortems.map((pm) => ({
-            id: pm.id,
-            clientName: pm.pipelineRun.client.name,
-            agentScores: pm.agentScores,
-            employeeFeedback: pm.employeeFeedback,
-            skillUpdates: pm.skillUpdates,
-            createdAt: pm.createdAt,
-          })),
+          historicalPostmortems.map((pm) => {
+            const pmRun = runsByIdMap.get(pm.pipelineRunId);
+            return {
+              id: pm.id,
+              clientName: pmRun?.client.name ?? "unknown",
+              agentScores: pm.agentScores,
+              employeeFeedback: pm.employeeFeedback,
+              skillUpdates: pm.skillUpdates,
+              createdAt: pm.createdAt,
+            };
+          }),
           null,
           2
         )
