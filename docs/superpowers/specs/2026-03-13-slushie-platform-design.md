@@ -41,8 +41,10 @@ the 4 thinking agents (analyst, builder, reviewer, postmortem) run as **claude c
 
 **what still requires separate api keys:**
 - deepgram: real-time speech-to-text (~$0.0059/min) — claude code can't process audio streams
-- twilio: sms delivery (~$0.0079/msg) — external notification service
 - infrastructure: railway (~$15/mo for redis + postgres + workers), vercel (free tier), s3 (pennies)
+
+**environment variables:**
+- `DEEPGRAM_API_KEY` — set in `.env.local` (gitignored), required for live call transcription
 
 ### phases
 
@@ -50,7 +52,7 @@ the 4 thinking agents (analyst, builder, reviewer, postmortem) run as **claude c
 - slushie team member runs discovery call with the client
 - listener agent transcribes in real time via websocket → deepgram
 - listener agent streams coaching suggestions to team member's dashboard
-- client receives slushie-branded tracker link via sms immediately after call ends
+- client receives slushie-branded tracker link via dev chat (web-based notification simulator; twilio sms in phase 2)
 - events: `transcript.chunk`, `coaching.suggestion`, `call.ended`
 
 **phase 2: analysis (autonomous)**
@@ -112,7 +114,7 @@ during phase 3, when the builder hits an ambiguous design decision, it publishes
 **external service failures:**
 - deepgram websocket drops mid-call: automatic reconnect with 3 retries. if reconnect fails, fall back to recording audio and transcribing post-call via batch api. coaching pauses during fallback.
 - claude code session failure: if a session hangs or exits with error, bullmq worker kills the process and retries (up to 3 times). if all retries fail, job goes to dlq and team is alerted.
-- twilio sms failure: retry 3 times over 5 minutes. if all fail, log the failure and surface it in the dashboard so team member can manually share the link.
+- dev chat notification failure: retry 3 times. if all fail, log the failure and surface it in the dashboard so team member can manually share the link. (twilio sms integration deferred to phase 2)
 
 **dead letter queue dashboard:** all dlq items visible in the team dashboard under a "stalled builds" section with retry/cancel actions.
 
@@ -127,16 +129,14 @@ during phase 3, when the builder hits an ambiguous design decision, it publishes
 
 **separate api costs per pipeline run:**
 - deepgram transcription (30-min call): ~$0.18
-- twilio sms (2-3 messages): ~$0.02
-- **total per run: ~$0.20**
+- **total per run: ~$0.18**
 
 **monthly infrastructure:**
 - railway (redis + postgres + worker): ~$15/month
 - vercel (frontend, free tier): $0
 - s3 (prototype storage): ~$0.50/month
 - deepgram (10 calls/month × 30 min): ~$1.80/month
-- twilio (30 messages/month): ~$0.25/month
-- **total monthly at 10 calls/month: ~$18**
+- **total monthly at 10 calls/month: ~$17**
 
 **rate limiting:** max 3 concurrent pipeline runs (claude code sessions share the max subscription's throughput). max 20 pipeline runs per day. if a claude code session hangs or exceeds its timeout, the bullmq worker kills the process and retries.
 
@@ -288,13 +288,23 @@ during phase 3, when the builder hits an ambiguous design decision, it publishes
 
 ## client experience
 
-### 1. the text message
+### 1. the dev chat (sms simulator)
 
-sent immediately after the call ends. branded, warm, no jargon.
+a web-based chat widget in the team dashboard that simulates client notifications. in phase 1, this replaces twilio sms so you can test the full pipeline without an sms provider.
 
-> hey! thanks for chatting with us today. we're blending your custom tool right now. track the progress here:
->
-> slushie.agency/track/[slug]
+**how it works:**
+- lives at `slushie.agency/dev/chat` in the team dashboard
+- shows a phone-style chat ui with slushie branding
+- when the pipeline would normally send an sms, it instead posts the message to the dev chat via the event bus
+- messages appear in real time as styled chat bubbles (same copy that would go via sms)
+- team member can copy the tracker link from the chat to share manually
+- each pipeline run gets its own chat thread, labeled with client name
+
+**simulated messages:**
+- after call ends: "hey! thanks for chatting with us today. we're blending your custom tool right now. track the progress here: slushie.agency/track/[slug]"
+- on delivery: "your tool is ready! take a look: app.slushie.agency/preview/[nanoid]"
+
+**upgrade path:** when twilio is added in phase 2, the notification service swaps from dev chat to sms with no changes to the pipeline — the event bus publishes the same `client.notified` event, only the subscriber changes.
 
 ### 2. the progress tracker (domino's style)
 
@@ -369,7 +379,7 @@ after delivery:
 - **deepgram** — real-time streaming transcription via websocket (separate api key, ~$0.0059/min)
 
 ### notifications
-- **twilio** — sms for client tracker link and completion notification
+- **dev chat** — web-based notification simulator that replaces sms for phase 1 (see below)
 - **server-sent events** — real-time dashboard updates (coaching, tracker)
 
 ### deployment
@@ -443,12 +453,14 @@ after delivery:
 - real-time call transcription + coaching
 - autonomous analysis → build → 2-cycle gap resolution
 - functional prototype generation with simulated integrations
-- client progress tracker with sms delivery
+- client progress tracker with dev chat notifications (sms simulator)
 - internal team dashboard (call, preview, postmortem)
 - postmortem feedback loop with versioned skill updates
 
 ### phase 2 (future)
-- real client system integrations (quickbooks, google calendar, twilio, etc.)
+- real client system integrations (quickbooks, google calendar, etc.)
+- twilio sms — replace dev chat with real sms delivery
+- email as secondary notification channel
 - multi-call support (follow-up calls that refine the prototype)
 - client self-service portal
 - billing and subscription management
