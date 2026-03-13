@@ -53,7 +53,7 @@ export default async function TrackerPage({
     );
   }
 
-  const steps = (tracker.steps as TrackerStep[]) ?? [];
+  const steps = (tracker.steps as unknown as TrackerStep[]) ?? [];
   const clientName = tracker.pipelineRun.client.name;
 
   return (
