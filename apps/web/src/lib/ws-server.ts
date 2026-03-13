@@ -87,7 +87,7 @@ export function attachWebSocketServer(server: Server): void {
       return;
     }
 
-    ws.on("message", (data: Buffer) => {
+    ws.on("message", (data: Buffer | string) => {
       if (Buffer.isBuffer(data)) {
         proxy.sendAudio(data);
       } else {

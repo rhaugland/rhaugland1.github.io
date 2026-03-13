@@ -202,13 +202,13 @@ export function createCoachingWorker(): Worker {
         await prisma.call.update({
           where: { id: callId },
           data: {
-            coachingLog: [
+            coachingLog: JSON.parse(JSON.stringify([
               ...existingLog,
               ...suggestions.map((s) => ({
                 ...s,
                 generatedAt: new Date().toISOString(),
               })),
-            ],
+            ])),
           },
         });
       } finally {
