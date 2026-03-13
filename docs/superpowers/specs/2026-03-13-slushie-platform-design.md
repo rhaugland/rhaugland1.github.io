@@ -22,6 +22,28 @@ slushie is a platform that learns people's workflows through discovery calls, id
 
 all agents communicate through a shared event bus (redis streams via bullmq). each agent publishes and subscribes to typed events. this naturally handles the two timing modes — real-time during the call and async batch processing after.
 
+### agent runtime: claude code cli + max subscription
+
+the 4 thinking agents (analyst, builder, reviewer, postmortem) run as **claude code cli sessions** powered by the existing claude max subscription. this eliminates per-token api costs for all core reasoning work.
+
+**how agents invoke claude code:**
+- each bullmq worker spawns a claude code session via `claude -p "prompt" --output-format json` (non-interactive pipe mode)
+- the worker passes context (transcript, spec, manifest) as files in the working directory, then invokes claude code with a task-specific prompt
+- claude code reads the files, reasons, and writes output files (specs, manifests, reports) back to the working directory
+- the worker reads the output and publishes the appropriate event to the bus
+
+**session management:**
+- analyst: single session for initial spec. new session per consultation round (stateless — full context passed each time via files)
+- builder: single long-running session for initial build (claude code writes code into the prototype repo). new session per patch cycle
+- reviewer: single session per review (reads manifest + transcript + spec, writes gap report)
+- postmortem: single session (reads all artifacts, writes skill updates)
+- listener coaching: invoked via `claude -p` every 30 seconds with last 5 minutes of transcript context
+
+**what still requires separate api keys:**
+- deepgram: real-time speech-to-text (~$0.0059/min) — claude code can't process audio streams
+- twilio: sms delivery (~$0.0079/msg) — external notification service
+- infrastructure: railway (~$15/mo for redis + postgres + workers), vercel (free tier), s3 (pennies)
+
 ### phases
 
 **phase 1: live call (autonomous)**
@@ -89,31 +111,41 @@ during phase 3, when the builder hits an ambiguous design decision, it publishes
 
 **external service failures:**
 - deepgram websocket drops mid-call: automatic reconnect with 3 retries. if reconnect fails, fall back to recording audio and transcribing post-call via batch api. coaching pauses during fallback.
-- anthropic api failure: bullmq retry handles transient errors. if all retries fail, job goes to dlq and team is alerted.
+- claude code session failure: if a session hangs or exits with error, bullmq worker kills the process and retries (up to 3 times). if all retries fail, job goes to dlq and team is alerted.
 - twilio sms failure: retry 3 times over 5 minutes. if all fail, log the failure and surface it in the dashboard so team member can manually share the link.
 
 **dead letter queue dashboard:** all dlq items visible in the team dashboard under a "stalled builds" section with retry/cancel actions.
 
 ### cost model
 
-**estimated token usage per pipeline run (single call):**
-- listener agent (sonnet): ~50k tokens (coaching across a 30-min call, batched every 30 seconds)
-- analyst agent (opus): ~30k tokens (transcript analysis + spec generation)
-- builder agent (opus): ~150k tokens (initial build) + ~60k tokens per patch (x2 patches = ~120k)
-- builder ↔ analyst consultation: ~30k tokens (15 rounds worst case)
-- reviewer agent (sonnet): ~20k tokens per review (x3 reviews = ~60k)
-- postmortem agent (opus): ~40k tokens
+**claude code + max subscription ($0 per run):**
+- analyst agent: claude code session — spec generation, consultation answers
+- builder agent: claude code session — prototype code generation, patching
+- reviewer agent: claude code session — gap analysis, coverage scoring
+- postmortem agent: claude code session — performance analysis, skill updates
+- listener coaching: claude code invoked via `claude -p` every 30 seconds
 
-**total per pipeline run:** ~480k tokens (~$15-25 depending on input/output ratio)
+**separate api costs per pipeline run:**
+- deepgram transcription (30-min call): ~$0.18
+- twilio sms (2-3 messages): ~$0.02
+- **total per run: ~$0.20**
 
-**rate limiting:** max 10 concurrent pipeline runs. max 50 pipeline runs per day. per-agent token budget caps enforced at the bullmq worker level — if an agent exceeds 2x its estimated budget, the job is paused and flagged for review.
+**monthly infrastructure:**
+- railway (redis + postgres + worker): ~$15/month
+- vercel (frontend, free tier): $0
+- s3 (prototype storage): ~$0.50/month
+- deepgram (10 calls/month × 30 min): ~$1.80/month
+- twilio (30 messages/month): ~$0.25/month
+- **total monthly at 10 calls/month: ~$18**
+
+**rate limiting:** max 3 concurrent pipeline runs (claude code sessions share the max subscription's throughput). max 20 pipeline runs per day. if a claude code session hangs or exceeds its timeout, the bullmq worker kills the process and retries.
 
 ### service architecture
 
 **monorepo structure (turborepo):**
 - `apps/web` — next.js app (team dashboard + client pages)
-- `apps/worker` — node.js bullmq workers (all 5 agents run as workers)
-- `packages/agents` — agent logic (prompt templates, structured output schemas, tool definitions)
+- `apps/worker` — node.js bullmq workers (spawn claude code sessions for each agent)
+- `packages/agents` — agent prompts, system instructions, and context templates for each claude code session
 - `packages/db` — prisma schema + client
 - `packages/events` — typed event definitions shared between web and worker
 - `packages/ui` — slushie component library (shadcn/ui customized with brand)
@@ -142,11 +174,11 @@ during phase 3, when the builder hits an ambiguous design decision, it publishes
 - coaching suggestions to team member dashboard (via sse)
 - final consolidated transcript on call end
 
-**how it works:** audio streams via websocket to deepgram's streaming api for transcription. transcript chunks are published to the event bus. a claude sonnet instance monitors the running transcript and generates coaching suggestions — "ask about their invoicing process" or "there's a gap here, dig deeper on scheduling." suggestions stream to the team member's dashboard in real time via server-sent events.
+**how it works:** audio streams via websocket to deepgram's streaming api for transcription (requires deepgram api key). transcript chunks are published to the event bus and appended to a running transcript file. every 30 seconds, the coaching worker invokes `claude -p` with the last 5 minutes of transcript context and a coaching prompt. claude code analyzes the conversation and returns coaching suggestions. suggestions are published to the event bus and streamed to the team member's dashboard via sse.
 
-**target latency:** coaching suggestions should appear within 5 seconds of the relevant spoken content. achieved by batching transcript chunks every 2-3 sentences (not every word) and streaming sonnet responses.
+**target latency:** coaching suggestions appear within 10-15 seconds of the relevant spoken content. achieved by batching transcript chunks every 30 seconds and invoking claude code in pipe mode. slightly slower than a streaming api call but $0 cost via max subscription.
 
-**model:** claude sonnet (speed matters for real-time coaching)
+**runtime:** claude code cli via `claude -p` (max subscription). deepgram api key for transcription only.
 
 ### 2. analyst agent
 
@@ -164,9 +196,9 @@ during phase 3, when the builder hits an ambiguous design decision, it publishes
 - build spec — exactly what prototype to create (typed json schema)
 - anticipated integrations list (for simulated accounts)
 
-**how it works:** claude opus processes the full transcript with a structured prompt that extracts workflows, identifies inefficiencies, and estimates monetary impact. outputs a typed build spec (json schema) the builder consumes directly. the spec includes ui requirements, data models, simulated integration endpoints, and walkthrough steps. also available during phase 3 to answer builder design questions (up to 15 rounds) and during phase 4 to update specs based on gap reports.
+**how it works:** a bullmq worker spawns a claude code session pointed at the pipeline's working directory. claude code reads the transcript file, coaching log, and client context. it produces a build spec file (typed json) that the builder consumes directly. the spec includes ui requirements, data models, simulated integration endpoints, and walkthrough steps. for builder consultation rounds, a new claude code session is invoked per question with the original transcript + current spec as context. for gap resolution, claude code reads the gap report and updates the spec file.
 
-**model:** claude opus (complex reasoning for gap analysis and spec generation)
+**runtime:** claude code cli session (max subscription)
 
 ### 3. builder agent
 
@@ -184,7 +216,7 @@ during phase 3, when the builder hits an ambiguous design decision, it publishes
 - progress events for client tracker
 - decision log — choices made + flagged ambiguities
 
-**how it works:** the builder uses a `prototype-kit` package — a pre-built library of react components (dashboard layouts, forms, tables, charts, nav bars, walkthrough overlay) styled to slushie brand standards. the builder agent does not generate code from scratch. instead, it composes pages from the kit by producing a json manifest that declares which components to use, what data to show, and how pages connect. a renderer reads this manifest and assembles the prototype.
+**how it works:** a bullmq worker spawns a claude code session pointed at the prototype repo. claude code reads the build spec file and uses the `prototype-kit` package — a pre-built library of react components (dashboard layouts, forms, tables, charts, nav bars, walkthrough overlay) styled to slushie brand standards. claude code composes pages from the kit by producing a json manifest that declares which components to use, what data to show, and how pages connect. a renderer reads this manifest and assembles the prototype. this is exactly how you'd use claude code yourself — it reads the spec, writes files in the repo, and the output is a working prototype.
 
 **prototype manifest structure:**
 ```
@@ -200,7 +232,9 @@ during phase 3, when the builder hits an ambiguous design decision, it publishes
 
 **prototype scope:** typical prototypes are 3-6 pages. the kit constrains what can be built to a known set of patterns: dashboards, crud forms, list/detail views, scheduling calendars, invoice tables, and simple workflows. this constraint is a feature — it keeps build times under 45 minutes and ensures consistent quality.
 
-**model:** claude opus (complex reasoning for component composition and data modeling)
+**for patching (gap resolution):** a new claude code session reads the gap report + updated spec and edits the existing manifest/code files. same as how you'd ask claude code to fix issues in a codebase.
+
+**runtime:** claude code cli session (max subscription)
 
 ### 4. reviewer agent
 
@@ -219,7 +253,7 @@ during phase 3, when the builder hits an ambiguous design decision, it publishes
 - suggested revisions for next cycle or phase 2
 - coverage score (0-100)
 
-**how it works:** the reviewer receives the prototype's json manifest (not the deployed url) along with the transcript and build spec. it compares the manifest's pages, components, and data against what the client described in the call. this is a structured comparison — manifest components vs. transcript requirements — not a visual evaluation. produces a structured internal report with gap categorization (missed, simplified, deferred to phase 2), reasons, and actionable revision suggestions. runs 3 times total — once per gap resolution cycle, plus the final review.
+**how it works:** a bullmq worker spawns a claude code session that reads the prototype's json manifest, transcript, build spec, and decision log from the working directory. claude code compares the manifest's pages, components, and data against what the client described in the call. this is a structured comparison — manifest components vs. transcript requirements — not a visual evaluation. claude code writes a gap report file with categorized gaps, reasons, and revision suggestions. runs 3 times total — once per gap resolution cycle, plus the final review.
 
 **coverage score rubric:**
 - 90-100: all explicitly requested features present and functional
@@ -228,7 +262,7 @@ during phase 3, when the builder hits an ambiguous design decision, it publishes
 - 60-69: core workflow partially covered, significant gaps
 - below 60: major requirements missing — triggers one extra resolution cycle (max 1 extra, so 3 total max) before human review. if still below 60 after the extra cycle, escalate to human review with a warning flag
 
-**model:** claude sonnet (speed for review iteration cycles)
+**runtime:** claude code cli session (max subscription)
 
 ### 5. postmortem agent
 
@@ -246,9 +280,9 @@ during phase 3, when the builder hits an ambiguous design decision, it publishes
 - updated agent configurations (versioned)
 - trend reports (are agents improving over time?)
 
-**how it works:** after a slushie employee submits their review, the postmortem agent cross-references it with the full event log and all reviewer reports. identifies patterns — e.g., "builder consistently struggles with scheduling uis" or "analyst underestimates complexity of multi-step workflows." generates concrete prompt modifications and skill updates. all changes are versioned so they can be rolled back if performance degrades.
+**how it works:** after a slushie employee submits their review, a bullmq worker spawns a claude code session that reads the full event log, all reviewer reports, employee feedback, and historical postmortem data from the repo. claude code identifies patterns — e.g., "builder consistently struggles with scheduling uis" or "analyst underestimates complexity of multi-step workflows." it then edits the agent prompt files and skill configs directly in the repo, creating a new version. all changes are committed to git so they can be diffed and rolled back if performance degrades.
 
-**model:** claude opus (pattern recognition across historical data)
+**runtime:** claude code cli session (max subscription)
 
 ---
 
@@ -331,10 +365,8 @@ after delivery:
 - **s3** — prototype code bundles and assets
 
 ### ai
-- **anthropic sdk** — all agent interactions
-- **claude opus** — analyst, builder, postmortem (complex reasoning)
-- **claude sonnet** — listener coaching, reviewer (speed)
-- **deepgram** — real-time streaming transcription via websocket
+- **claude code cli** — all 5 agents run as claude code sessions via `claude -p` (pipe mode) or long-running sessions, powered by claude max subscription ($0 per-token cost)
+- **deepgram** — real-time streaming transcription via websocket (separate api key, ~$0.0059/min)
 
 ### notifications
 - **twilio** — sms for client tracker link and completion notification
@@ -429,7 +461,7 @@ after delivery:
 - call transcripts retained for 12 months, then archived to cold storage
 - prototype deployments expire 30 days after delivery (configurable per client)
 - clients can request deletion of all their data via the slushie team (manual process in phase 1, self-service in phase 2)
-- transcripts and build specs are sent to anthropic's api (claude) and deepgram for processing — no other third parties receive client data
+- transcripts and build specs are processed by claude code (which uses anthropic's api under the hood via the max subscription) and deepgram — no other third parties receive client data
 - all data at rest encrypted via postgresql and s3 default encryption
 - all data in transit encrypted via tls
 - call recording consent: team member verbally confirms recording at call start. consent noted in call record
