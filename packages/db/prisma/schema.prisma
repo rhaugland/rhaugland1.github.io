@@ -1,0 +1,145 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Client {
+  id              String   @id @default(cuid())
+  name            String
+  industry        String
+  phone           String?
+  businessContext  Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  calls           Call[]
+  pipelineRuns    PipelineRun[]
+}
+
+model Call {
+  id           String   @id @default(cuid())
+  clientId     String
+  transcript   String?  @db.Text
+  coachingLog  Json?
+  startedAt    DateTime?
+  endedAt      DateTime?
+  createdAt    DateTime @default(now())
+
+  client       Client   @relation(fields: [clientId], references: [id])
+  pipelineRun  PipelineRun?
+  analysis     Analysis?
+}
+
+model PipelineRun {
+  id          String          @id @default(cuid())
+  clientId    String
+  callId      String          @unique
+  status      PipelineStatus  @default(RUNNING)
+  startedAt   DateTime        @default(now())
+  completedAt DateTime?
+
+  client      Client          @relation(fields: [clientId], references: [id])
+  call        Call            @relation(fields: [callId], references: [id])
+  tracker     Tracker?
+  postmortem  Postmortem?
+}
+
+enum PipelineStatus {
+  RUNNING
+  STALLED
+  COMPLETED
+  CANCELLED
+}
+
+model Analysis {
+  id             String   @id @default(cuid())
+  callId         String   @unique
+  workflowMap    Json?
+  gaps           Json?
+  monetaryImpact Json?
+  createdAt      DateTime @default(now())
+
+  call           Call     @relation(fields: [callId], references: [id])
+  buildSpecs     BuildSpec[]
+}
+
+model BuildSpec {
+  id              String   @id @default(cuid())
+  analysisId      String
+  version         Int      @default(1)
+  uiRequirements  Json?
+  dataModels      Json?
+  integrations    Json?
+  walkthroughSteps Json?
+  createdAt       DateTime @default(now())
+
+  analysis        Analysis @relation(fields: [analysisId], references: [id])
+  prototypes      Prototype[]
+}
+
+model Prototype {
+  id               String   @id @default(cuid())
+  buildSpecId      String
+  version          Int      @default(1)
+  codeBundleUrl    String?
+  previewUrl       String?
+  manifest         Json?
+  decisionLog      Json?
+  createdAt        DateTime @default(now())
+
+  buildSpec        BuildSpec @relation(fields: [buildSpecId], references: [id])
+  gapReports       GapReport[]
+}
+
+model GapReport {
+  id            String   @id @default(cuid())
+  prototypeId   String
+  version       Int      @default(1)
+  coverageScore Int?
+  gaps          Json?
+  tradeoffs     Json?
+  revisions     Json?
+  createdAt     DateTime @default(now())
+
+  prototype     Prototype @relation(fields: [prototypeId], references: [id])
+}
+
+model Tracker {
+  id            String   @id @default(cuid())
+  pipelineRunId String   @unique
+  slug          String   @unique
+  currentStep   Int      @default(1)
+  steps         Json?
+  notifiedAt    DateTime?
+  expiresAt     DateTime?
+  createdAt     DateTime @default(now())
+
+  pipelineRun   PipelineRun @relation(fields: [pipelineRunId], references: [id])
+}
+
+model Postmortem {
+  id               String   @id @default(cuid())
+  pipelineRunId    String   @unique
+  agentScores      Json?
+  employeeFeedback Json?
+  skillUpdates     Json?
+  createdAt        DateTime @default(now())
+
+  pipelineRun      PipelineRun @relation(fields: [pipelineRunId], references: [id])
+}
+
+model AgentSkill {
+  id                    String   @id @default(cuid())
+  agentType             String
+  version               Int      @default(1)
+  promptTemplate        String   @db.Text
+  config                Json?
+  updatedByPostmortemId String?
+  createdAt             DateTime @default(now())
+
+  @@unique([agentType, version])
+}
