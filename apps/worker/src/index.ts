@@ -11,6 +11,9 @@ import { createAnalystWorker } from "./agents/analyst";
 import { createBuilderWorker } from "./agents/builder";
 import { createReviewerWorker } from "./agents/reviewer";
 import { createPipelineOrchestrator } from "./agents/pipeline";
+import { createTrackerWorker } from "./workers/tracker.worker";
+import { createNotificationWorker } from "./workers/notification.worker";
+import { createTrackerInitWorker } from "./workers/tracker-init.worker";
 
 async function main() {
   logger.info("slushie worker starting...");
@@ -37,7 +40,12 @@ async function main() {
   const reviewerWorker = createReviewerWorker();
   const pipelineOrchestrator = createPipelineOrchestrator();
 
-  const workers = [analystWorker, builderWorker, reviewerWorker, pipelineOrchestrator];
+  // register tracker, notification, and tracker-init workers
+  const trackerWorker = createTrackerWorker();
+  const notificationWorker = createNotificationWorker();
+  const trackerInitWorker = createTrackerInitWorker();
+
+  const workers = [analystWorker, builderWorker, reviewerWorker, pipelineOrchestrator, trackerWorker, notificationWorker, trackerInitWorker];
 
   for (const w of workers) {
     w.on("failed", (job, err) => {
