@@ -73,6 +73,58 @@ during phase 3, when the builder hits an ambiguous design decision, it publishes
 - after cap, builder uses best judgment and flags decisions for the reviewer
 - prevents infinite loops while allowing meaningful design collaboration
 
+### authentication + security
+
+**team dashboard:** nextauth with google oauth. all slushie team members have `@slushie.agency` google accounts. role-based access: `team_member` (run calls, review previews), `admin` (postmortems, skill management).
+
+**client tracker + prototype links:** unguessable slugs (nanoid, 21 chars). no login required — security through obscurity of the url. links are single-use tokens that expire 30 days after delivery. tracker urls: `slushie.agency/track/[nanoid]`. prototype urls: `app.slushie.agency/preview/[nanoid]`.
+
+**api routes:** all internal api routes require valid session token. agent-to-agent communication happens via bullmq (redis auth), never via public http.
+
+### error handling + failure strategy
+
+**bullmq retry policy:** all agent jobs retry 3 times with exponential backoff (1s, 10s, 60s). after 3 failures, the job moves to a dead letter queue and the team is notified via the dashboard.
+
+**pipeline stall detection:** if any phase exceeds its timeout (listener: call duration + 5min, analyst: 15min, builder: 45min, reviewer: 10min, gap resolution cycle: 60min), the pipeline is marked as stalled. team member is notified. client tracker shows "taking a little longer than usual — we'll text you when it's ready."
+
+**external service failures:**
+- deepgram websocket drops mid-call: automatic reconnect with 3 retries. if reconnect fails, fall back to recording audio and transcribing post-call via batch api. coaching pauses during fallback.
+- anthropic api failure: bullmq retry handles transient errors. if all retries fail, job goes to dlq and team is alerted.
+- twilio sms failure: retry 3 times over 5 minutes. if all fail, log the failure and surface it in the dashboard so team member can manually share the link.
+
+**dead letter queue dashboard:** all dlq items visible in the team dashboard under a "stalled builds" section with retry/cancel actions.
+
+### cost model
+
+**estimated token usage per pipeline run (single call):**
+- listener agent (sonnet): ~50k tokens (coaching across a 30-min call, batched every 30 seconds)
+- analyst agent (opus): ~30k tokens (transcript analysis + spec generation)
+- builder agent (opus): ~150k tokens (initial build) + ~60k tokens per patch (x2 patches = ~120k)
+- builder ↔ analyst consultation: ~30k tokens (15 rounds worst case)
+- reviewer agent (sonnet): ~20k tokens per review (x3 reviews = ~60k)
+- postmortem agent (opus): ~40k tokens
+
+**total per pipeline run:** ~480k tokens (~$15-25 depending on input/output ratio)
+
+**rate limiting:** max 10 concurrent pipeline runs. max 50 pipeline runs per day. per-agent token budget caps enforced at the bullmq worker level — if an agent exceeds 2x its estimated budget, the job is paused and flagged for review.
+
+### service architecture
+
+**monorepo structure (turborepo):**
+- `apps/web` — next.js app (team dashboard + client pages)
+- `apps/worker` — node.js bullmq workers (all 5 agents run as workers)
+- `packages/agents` — agent logic (prompt templates, structured output schemas, tool definitions)
+- `packages/db` — prisma schema + client
+- `packages/events` — typed event definitions shared between web and worker
+- `packages/ui` — slushie component library (shadcn/ui customized with brand)
+- `packages/prototype-kit` — component library and templates for generated prototypes
+
+**deployment topology:**
+- vercel: `apps/web` (frontend + api routes for sse, auth)
+- railway: `apps/worker` (long-running bullmq workers), redis, postgresql
+- s3: prototype code bundles
+- each service communicates only through redis (event bus) and postgres (shared state)
+
 ---
 
 ## agent designs
@@ -91,6 +143,8 @@ during phase 3, when the builder hits an ambiguous design decision, it publishes
 - final consolidated transcript on call end
 
 **how it works:** audio streams via websocket to deepgram's streaming api for transcription. transcript chunks are published to the event bus. a claude sonnet instance monitors the running transcript and generates coaching suggestions — "ask about their invoicing process" or "there's a gap here, dig deeper on scheduling." suggestions stream to the team member's dashboard in real time via server-sent events.
+
+**target latency:** coaching suggestions should appear within 5 seconds of the relevant spoken content. achieved by batching transcript chunks every 2-3 sentences (not every word) and streaming sonnet responses.
 
 **model:** claude sonnet (speed matters for real-time coaching)
 
@@ -130,9 +184,23 @@ during phase 3, when the builder hits an ambiguous design decision, it publishes
 - progress events for client tracker
 - decision log — choices made + flagged ambiguities
 
-**how it works:** claude opus generates a deployable web prototype using a slushie component library and template system. simulated integrations use mock api endpoints that return realistic data based on the client's business context. the walkthrough overlay is auto-generated from the build spec steps. each prototype is deployed to a unique url (e.g., `app.slushie.agency/preview/[client-id]`). publishes progress events so the client tracker updates in real time.
+**how it works:** the builder uses a `prototype-kit` package — a pre-built library of react components (dashboard layouts, forms, tables, charts, nav bars, walkthrough overlay) styled to slushie brand standards. the builder agent does not generate code from scratch. instead, it composes pages from the kit by producing a json manifest that declares which components to use, what data to show, and how pages connect. a renderer reads this manifest and assembles the prototype.
 
-**model:** claude opus (code generation requires deep reasoning)
+**prototype manifest structure:**
+```
+{
+  pages: [{ route, layout, components: [{ type, props, data }] }],
+  walkthrough: [{ target_component, step, text }],
+  mock_endpoints: [{ path, method, response_data }],
+  simulated_integrations: [{ name, type, mock_account_config }]
+}
+```
+
+**deployment:** the renderer produces a static next.js export. the export is uploaded to s3 and served via vercel's static hosting at `app.slushie.agency/preview/[nanoid]`. each prototype is an independent static deployment — no shared runtime, no server-side code. this is cheap (~$0 marginal cost per prototype on vercel) and secure (no code execution, just static assets + client-side js calling mock endpoints).
+
+**prototype scope:** typical prototypes are 3-6 pages. the kit constrains what can be built to a known set of patterns: dashboards, crud forms, list/detail views, scheduling calendars, invoice tables, and simple workflows. this constraint is a feature — it keeps build times under 45 minutes and ensures consistent quality.
+
+**model:** claude opus (complex reasoning for component composition and data modeling)
 
 ### 4. reviewer agent
 
@@ -142,7 +210,7 @@ during phase 3, when the builder hits an ambiguous design decision, it publishes
 - original call transcript
 - analyst's build spec (current version)
 - builder's decision log
-- deployed prototype url
+- prototype json manifest (structured component/data declaration)
 
 **output:**
 - gap report — what was requested vs. what was built
@@ -151,7 +219,14 @@ during phase 3, when the builder hits an ambiguous design decision, it publishes
 - suggested revisions for next cycle or phase 2
 - coverage score (0-100)
 
-**how it works:** claude sonnet compares the transcript against the build spec and final prototype. produces a structured internal report with gap categorization (missed, simplified, deferred to phase 2), reasons, and actionable revision suggestions. includes a coverage score that the postmortem agent tracks over time. runs 3 times total — once per gap resolution cycle, plus the final review.
+**how it works:** the reviewer receives the prototype's json manifest (not the deployed url) along with the transcript and build spec. it compares the manifest's pages, components, and data against what the client described in the call. this is a structured comparison — manifest components vs. transcript requirements — not a visual evaluation. produces a structured internal report with gap categorization (missed, simplified, deferred to phase 2), reasons, and actionable revision suggestions. runs 3 times total — once per gap resolution cycle, plus the final review.
+
+**coverage score rubric:**
+- 90-100: all explicitly requested features present and functional
+- 80-89: core workflow fully covered, minor features simplified or approximated
+- 70-79: core workflow covered with notable simplifications
+- 60-69: core workflow partially covered, significant gaps
+- below 60: major requirements missing — triggers one extra resolution cycle (max 1 extra, so 3 total max) before human review. if still below 60 after the extra cycle, escalate to human review with a warning flag
 
 **model:** claude sonnet (speed for review iteration cycles)
 
@@ -202,7 +277,7 @@ copy uses slushie's cold/blending metaphors throughout. updates driven by `track
 
 ### 3. the prototype + walkthrough
 
-functional web app at `app.slushie.agency/preview/[client-id]` with a tooltip-based guided overlay.
+functional web app at `app.slushie.agency/preview/[nanoid]` with a tooltip-based guided overlay.
 
 - each walkthrough step highlights a section of the app
 - explains what it does in plain language tied to the client's specific business
@@ -245,7 +320,7 @@ after delivery:
 ## tech stack
 
 ### frontend
-- **next.js 14** — team dashboard + client-facing pages (tracker, prototypes)
+- **next.js (latest stable)** — team dashboard + client-facing pages (tracker, prototypes)
 - **typescript** — type safety across the entire codebase
 - **tailwind css + shadcn/ui** — matches slushie design system
 
@@ -292,13 +367,20 @@ after delivery:
 - id, build_spec_id, version (v1/v2/v3), code_bundle_url, preview_url, walkthrough_steps[], decision_log[]
 
 **gap_report**
-- id, prototype_id, version, gaps[] (each: type, description, reason), coverage_score, tradeoffs[], revisions[]
+- id, prototype_id, version, coverage_score
+- gaps[]: `{ type: "missed"|"simplified"|"deferred", feature: string, description: string, reason: string, severity: "high"|"medium"|"low" }`
+- tradeoffs[]: `{ decision: string, chose: string, alternative: string, rationale: string }`
+- revisions[]: `{ target: "spec"|"prototype", action: string, priority: "high"|"medium"|"low" }`
+
+**pipeline_run**
+- id, client_id, call_id, status (running/stalled/completed/cancelled), started_at, completed_at
+- the unifying entity — ties call, analysis, build_specs, prototypes, gap_reports, tracker, and postmortem together as one unit of work
 
 **tracker**
-- id, client_id, slug, current_step, steps[], notified_at
+- id, pipeline_run_id, slug (nanoid 21 chars), current_step, steps[], notified_at, expires_at
 
 **postmortem**
-- id, call_id, agent_scores{}, employee_feedback{}, skill_updates[], created_at
+- id, pipeline_run_id, agent_scores{}, employee_feedback{}, skill_updates[], created_at
 
 **agent_skill**
 - id, agent_type, version, prompt_template, config, updated_by_postmortem_id
@@ -339,3 +421,26 @@ after delivery:
 - client self-service portal
 - billing and subscription management
 - analytics dashboard (conversion rates, time-to-delivery, agent improvement trends)
+
+---
+
+## data retention + privacy
+
+- call transcripts retained for 12 months, then archived to cold storage
+- prototype deployments expire 30 days after delivery (configurable per client)
+- clients can request deletion of all their data via the slushie team (manual process in phase 1, self-service in phase 2)
+- transcripts and build specs are sent to anthropic's api (claude) and deepgram for processing — no other third parties receive client data
+- all data at rest encrypted via postgresql and s3 default encryption
+- all data in transit encrypted via tls
+- call recording consent: team member verbally confirms recording at call start. consent noted in call record
+- static prototype exports are self-contained (all assets bundled) — no dependency on shared cdn or live component library
+
+---
+
+## observability
+
+- structured json logging across all services (pino)
+- per-agent metrics: token usage, latency, success/failure rate
+- pipeline-level metrics: time-to-delivery, coverage score trends, stall rate
+- railway built-in logging for phase 1; datadog or axiom for phase 2
+- all bullmq events logged with correlation id (pipeline_run_id) for end-to-end tracing
