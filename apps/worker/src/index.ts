@@ -1,6 +1,7 @@
 import Redis from "ioredis";
 import { logger } from "./logger";
 import { listenerQueue, analystQueue, builderQueue, reviewerQueue, postmortemQueue } from "./queues";
+import { createCoachingWorker } from "./coaching";
 
 async function main() {
   logger.info("slushie worker starting...");
@@ -21,12 +22,16 @@ async function main() {
   const queues = [listenerQueue, analystQueue, builderQueue, reviewerQueue, postmortemQueue];
   logger.info({ queues: queues.map((q) => q.name) }, "queues registered");
 
-  // workers will be registered here as they're built in plans 2-5
+  // start coaching worker
+  const coachingWorker = createCoachingWorker();
+  logger.info("coaching worker registered");
+
   logger.info("slushie worker is running. waiting for events...");
 
   // graceful shutdown
-  const shutdown = () => {
+  const shutdown = async () => {
     logger.info("shutting down workers...");
+    await coachingWorker.close();
     process.exit(0);
   };
   process.on("SIGTERM", shutdown);
