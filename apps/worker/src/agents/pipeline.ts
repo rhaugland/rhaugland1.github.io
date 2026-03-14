@@ -118,9 +118,9 @@ export function createPipelineOrchestrator() {
             break;
           }
           log.info("pipeline: spec updated — triggering builder patch");
-          await builderQueue.add("build.spec.updated", event, {
-            timeout: 15 * 60 * 1000, // 15-minute timeout for mid-call builder jobs
-          });
+          // note: mid-call builder timeout (15 min vs 45 min) is enforced at the
+          // worker level via invokeClaudeCode timeoutMs, not here
+          await builderQueue.add("build.spec.updated", event);
           break;
         }
 

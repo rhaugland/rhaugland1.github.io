@@ -18,6 +18,15 @@ export async function POST(request: Request) {
     );
   }
 
+  const run = await prisma.pipelineRun.findUnique({
+    where: { id: pipelineRunId },
+    select: { id: true },
+  });
+
+  if (!run) {
+    return NextResponse.json({ error: "pipeline run not found" }, { status: 404 });
+  }
+
   await prisma.pipelineRun.update({
     where: { id: pipelineRunId },
     data: { buildPaused: true },

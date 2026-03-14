@@ -175,8 +175,8 @@ export function stopCatchupListener(): void {
     catchupRedis.disconnect();
     catchupRedis = null;
   }
-  // stop all active sessions
-  for (const [pipelineRunId] of activeSessions) {
-    stopIncrementalAnalyst(pipelineRunId);
+  // stop all active sessions (spread to array to avoid mutating during iteration)
+  for (const id of [...activeSessions.keys()]) {
+    stopIncrementalAnalyst(id);
   }
 }
