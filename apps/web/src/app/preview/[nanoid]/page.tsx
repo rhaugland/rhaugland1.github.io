@@ -49,25 +49,33 @@ export default async function PreviewPage({
   // find the latest prototype for this pipeline run
   const pipelineRun = tracker.pipelineRun;
 
-  // query through the chain: pipelineRun -> call -> analysis -> buildSpec -> prototype
-  const prototype = await prisma.prototype.findFirst({
-    where: {
-      buildSpec: {
-        analysis: {
-          callId: pipelineRun.callId,
+  let prototype: {
+    id: string;
+    version: number;
+    previewUrl: string | null;
+    manifest: unknown;
+  } | null = null;
+
+  if (pipelineRun) {
+    prototype = await prisma.prototype.findFirst({
+      where: {
+        buildSpec: {
+          analysis: {
+            callId: pipelineRun.callId,
+          },
         },
       },
-    },
-    orderBy: { version: "desc" },
-    select: {
-      id: true,
-      version: true,
-      previewUrl: true,
-      manifest: true,
-    },
-  });
+      orderBy: { version: "desc" },
+      select: {
+        id: true,
+        version: true,
+        previewUrl: true,
+        manifest: true,
+      },
+    });
+  }
 
-  const clientName = pipelineRun.client.name;
+  const clientName = pipelineRun?.client.name ?? "your project";
 
   // extract walkthrough steps from prototype manifest
   interface WalkthroughStep {

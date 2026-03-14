@@ -24,7 +24,7 @@ export async function GET(
   }
 
   const redis = new Redis(process.env.REDIS_URL ?? "redis://localhost:6379");
-  const channel = `tracker:${tracker.pipelineRunId}`;
+  const channel = `tracker:${tracker.pipelineRunId ?? tracker.id}`;
 
   const stream = new ReadableStream({
     start(controller) {

@@ -14,6 +14,7 @@ export async function GET(
           client: { select: { name: true } },
         },
       },
+      booking: { select: { businessName: true } },
     },
   });
 
@@ -29,7 +30,10 @@ export async function GET(
     slug: tracker.slug,
     currentStep: tracker.currentStep,
     steps: tracker.steps,
-    clientName: tracker.pipelineRun.client.name,
+    clientName:
+      tracker.pipelineRun?.client.name ??
+      tracker.booking?.businessName ??
+      "your project",
     prototypeNanoid: tracker.prototypeNanoid,
     createdAt: tracker.createdAt.toISOString(),
   });

@@ -31,6 +31,7 @@ export default async function TrackerPage({
           client: { select: { name: true } },
         },
       },
+      booking: { select: { businessName: true } },
     },
   });
 
@@ -54,7 +55,10 @@ export default async function TrackerPage({
   }
 
   const steps = (tracker.steps as unknown as TrackerStep[]) ?? [];
-  const clientName = tracker.pipelineRun.client.name;
+  const clientName =
+    tracker.pipelineRun?.client.name ??
+    tracker.booking?.businessName ??
+    "your project";
 
   return (
     <TrackerClient
