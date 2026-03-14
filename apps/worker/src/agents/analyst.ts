@@ -1,6 +1,6 @@
 import { Worker, Job } from "bullmq";
 import { prisma } from "@slushie/db";
-import { createEvent, type CallEndedEvent, type SlushieEvent } from "@slushie/events";
+import { createEvent, type CallEndedEvent, type SlushieEvent, type AnalystIncrementalEvent } from "@slushie/events";
 import { analystPrompt, analystConsultationAnswerPrompt, analystSpecUpdatePrompt } from "@slushie/agents";
 import { invokeClaudeCode } from "../claude";
 import { publishEvent } from "../publish";
@@ -30,6 +30,8 @@ export function createAnalystWorker() {
         await handleDesignQuestion(event);
       } else if (event.type === "review.complete") {
         await handleReviewComplete(event);
+      } else if (event.type === "analyst.incremental") {
+        await handleIncrementalAnalysis(event as AnalystIncrementalEvent);
       }
     },
     {
@@ -235,4 +237,162 @@ async function handleReviewComplete(event: SlushieEvent): Promise<void> {
   );
 
   log.info({ buildSpecId: buildSpec.id, version: newVersion }, "analyst spec update published");
+}
+
+async function handleIncrementalAnalysis(event: AnalystIncrementalEvent): Promise<void> {
+  const { pipelineRunId } = event;
+  const transcript = event.data.transcript;
+  const log = createAgentLogger("analyst-incremental", pipelineRunId);
+
+  log.info({ transcriptLength: transcript.length }, "starting incremental analysis");
+
+  // load pipeline run with client context
+  const run = await prisma.pipelineRun.findUnique({
+    where: { id: pipelineRunId },
+    include: {
+      call: { include: { client: true } },
+      client: true,
+    },
+  });
+
+  if (!run) {
+    log.error("pipeline run not found");
+    return;
+  }
+
+  // load team directives for context
+  const directives = run.teamDirectives as Array<{ text: string; timestamp: number; sentBy: string }> | null;
+  let directivesContext = "";
+  if (directives && directives.length > 0) {
+    directivesContext = "\n\nTEAM MEMBER FEEDBACK:\n" + directives
+      .map((d) => `[${new Date(d.timestamp).toISOString()}] ${d.sentBy}: ${d.text}`)
+      .join("\n");
+  }
+
+  // set up workspace and write transcript
+  const workspace = await getWorkspace(pipelineRunId);
+  await writeWorkspaceFile(workspace.transcriptPath, transcript);
+
+  const clientContext = `industry: ${run.call.client.industry}, name: ${run.call.client.name}`;
+  const specOutputPath = workspace.buildSpecPath(1);
+
+  const prompt = analystPrompt({
+    transcriptPath: workspace.transcriptPath,
+    coachingLogPath: workspace.coachingLogPath,
+    clientContext,
+    outputPath: specOutputPath,
+  }) + directivesContext;
+
+  // invoke claude code with analyst prompt + directives context
+  const result = await invokeClaudeCode({
+    prompt,
+    workingDirectory: workspace.root,
+    timeoutMs: 5 * 60 * 1000, // 5-minute timeout for incremental runs
+    pipelineRunId,
+  });
+
+  // read and parse the spec file
+  const specContent = await readWorkspaceFile(specOutputPath);
+  const output = JSON.parse(specContent);
+
+  // check for existing analysis to detect material changes
+  const existingAnalysis = await prisma.analysis.findFirst({
+    where: { callId: run.callId },
+    include: { buildSpecs: { orderBy: { version: "desc" }, take: 1 } },
+  });
+
+  const currentSpec = existingAnalysis?.buildSpecs[0];
+  const isFirstRun = !existingAnalysis;
+
+  if (isFirstRun) {
+    // first incremental run — create analysis + build spec v1
+    const analysis = await prisma.analysis.create({
+      data: {
+        callId: run.callId,
+        workflowMap: output.workflowMap ?? null,
+        gaps: output.gaps ?? null,
+        monetaryImpact: output.totalMonthlyImpact ? { total: output.totalMonthlyImpact } : undefined,
+      },
+    });
+
+    const spec = output.prototype ?? output;
+    const buildSpec = await prisma.buildSpec.create({
+      data: {
+        analysisId: analysis.id,
+        version: 1,
+        uiRequirements: spec.pages ?? null,
+        dataModels: spec.mockEndpoints ?? null,
+        integrations: spec.simulatedIntegrations ?? null,
+        walkthroughSteps: spec.walkthroughSteps ?? null,
+      },
+    });
+
+    await publishEvent(createEvent("analysis.complete", pipelineRunId, {
+      analysisId: analysis.id,
+      gapCount: (output.gaps as unknown[])?.length ?? 0,
+      totalMonetaryImpact: output.totalMonthlyImpact ?? "$0",
+    }));
+
+    await publishEvent(createEvent("build.spec.ready", pipelineRunId, {
+      buildSpecId: buildSpec.id,
+      version: 1,
+      pageCount: (spec.pages as unknown[])?.length ?? 0,
+    }));
+
+    log.info("first incremental analysis complete — spec v1 published");
+  } else {
+    // subsequent run — check for material changes
+    const spec = output.prototype ?? output;
+    const newPages = (spec.pages as unknown[]) ?? [];
+    const newIntegrations = (spec.simulatedIntegrations as unknown[]) ?? [];
+    const newGaps = (output.gaps as unknown[]) ?? [];
+
+    const oldPages = (currentSpec?.uiRequirements as unknown[]) ?? [];
+    const oldIntegrations = (currentSpec?.integrations as unknown[]) ?? [];
+    const oldGaps = (existingAnalysis?.gaps as unknown[]) ?? [];
+
+    const materialChange =
+      newPages.length !== oldPages.length ||
+      newIntegrations.length !== oldIntegrations.length ||
+      newGaps.length !== oldGaps.length;
+
+    if (materialChange) {
+      const newVersion = (currentSpec?.version ?? 0) + 1;
+      const buildSpec = await prisma.buildSpec.create({
+        data: {
+          analysisId: existingAnalysis!.id,
+          version: newVersion,
+          uiRequirements: spec.pages ?? null,
+          dataModels: spec.mockEndpoints ?? null,
+          integrations: spec.simulatedIntegrations ?? null,
+          walkthroughSteps: spec.walkthroughSteps ?? null,
+        },
+      });
+
+      // update analysis with latest gaps
+      await prisma.analysis.update({
+        where: { id: existingAnalysis!.id },
+        data: {
+          gaps: output.gaps ?? null,
+          monetaryImpact: output.totalMonthlyImpact ? { total: output.totalMonthlyImpact } : undefined,
+        },
+      });
+
+      await publishEvent(createEvent("analysis.complete", pipelineRunId, {
+        analysisId: existingAnalysis!.id,
+        gapCount: newGaps.length,
+        totalMonetaryImpact: output.totalMonthlyImpact ?? "$0",
+      }));
+
+      await publishEvent(createEvent("build.spec.updated", pipelineRunId, {
+        buildSpecId: buildSpec.id,
+        version: newVersion,
+        changesFromGapReport: `incremental update: pages ${oldPages.length}→${newPages.length}, integrations ${oldIntegrations.length}→${newIntegrations.length}, gaps ${oldGaps.length}→${newGaps.length}`,
+      }));
+
+      log.info({ newVersion, materialChange: true }, "incremental analysis complete — spec updated");
+    } else {
+      log.info("incremental analysis complete — no material changes, skipping spec update");
+    }
+  }
 }
