@@ -8,16 +8,33 @@ datasource db {
 }
 
 model Client {
-  id              String   @id @default(cuid())
+  id              String       @id @default(cuid())
   name            String
   industry        String
+  contactName     String?
+  contactEmail    String?
   phone           String?
   businessContext  Json?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  owner           String?
+  stage           ClientStage  @default(WORKING)
+  doneAt          DateTime?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
 
   calls           Call[]
   pipelineRuns    PipelineRun[]
+}
+
+model Employee {
+  id        String   @id @default(cuid())
+  name      String
+  email     String?
+  createdAt DateTime @default(now())
+}
+
+enum ClientStage {
+  WORKING
+  DONE
 }
 
 model Call {
@@ -41,6 +58,10 @@ model PipelineRun {
   status      PipelineStatus  @default(RUNNING)
   startedAt   DateTime        @default(now())
   completedAt DateTime?
+  buildPaused         Boolean   @default(false)
+  teamDirectives      Json?
+  lastAnalystRunAt    DateTime?
+  transcriptSnapshot  String?   @db.Text
 
   client      Client          @relation(fields: [clientId], references: [id])
   call        Call            @relation(fields: [callId], references: [id])
