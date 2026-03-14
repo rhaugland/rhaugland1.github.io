@@ -45,16 +45,18 @@ export function createTrackerWorker() {
         throw new Error(`no tracker found for pipeline run ${pipelineRunId}`);
       }
 
-      // validate step number
-      if (step < 1 || step > 5) {
-        workerLogger.error({ step }, "invalid tracker step");
-        throw new Error(`invalid tracker step: ${step}`);
+      // validate step number — use tracker's step count (5 for pipeline, 8 for booking)
+      const trackerSteps = tracker.steps as Array<{ step: number }> | null;
+      const maxStep = trackerSteps?.length ?? TRACKER_STEPS.length;
+      if (step < 1 || step > maxStep) {
+        workerLogger.error({ step, maxStep }, "invalid tracker step");
+        throw new Error(`invalid tracker step: ${step} (max: ${maxStep})`);
       }
 
-      // look up step metadata — use event data if provided, fall back to defaults
-      const stepMeta = TRACKER_STEPS[step - 1];
-      const label = event.data.label || stepMeta.label;
-      const subtitle = event.data.subtitle || stepMeta.subtitle;
+      // look up step metadata — null-safe for steps beyond TRACKER_STEPS (booking has 8)
+      const stepMeta = TRACKER_STEPS[step - 1] ?? null;
+      const label = event.data.label || stepMeta?.label || `step ${step}`;
+      const subtitle = event.data.subtitle || stepMeta?.subtitle || "";
 
       // update tracker in database
       const updatedSteps = (tracker.steps as Array<{
@@ -83,10 +85,10 @@ export function createTrackerWorker() {
         }
       }
 
-      // if step is 5 (final), mark it as done too
-      if (step === 5) {
-        updatedSteps[4].status = "done";
-        updatedSteps[4].completedAt = new Date().toISOString();
+      // if final step, mark it as done too
+      if (step === maxStep) {
+        updatedSteps[step - 1].status = "done";
+        updatedSteps[step - 1].completedAt = new Date().toISOString();
       }
 
       await prisma.tracker.update({
@@ -108,7 +110,7 @@ export function createTrackerWorker() {
         timestamp: Date.now(),
       });
 
-      await pubRedis.publish(`tracker:${pipelineRunId}`, ssePayload);
+      await pubRedis.publish(`tracker:${pipelineRunId ?? tracker.id}`, ssePayload);
       workerLogger.info({ step, label }, "tracker updated and published");
     },
     { connection: getRedisConnection() }
