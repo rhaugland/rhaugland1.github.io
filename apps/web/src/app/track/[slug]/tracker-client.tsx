@@ -33,7 +33,7 @@ interface TrackerClientProps {
 function StepIndicator({ status }: { status: "done" | "active" | "pending" }) {
   if (status === "done") {
     return (
-      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-500">
+      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-primary to-secondary">
         <svg
           className="h-5 w-5 text-white"
           fill="none"
@@ -72,7 +72,7 @@ function StepConnector({ status }: { status: "done" | "active" | "pending" }) {
     <div className="mx-auto my-1 h-8 w-0.5">
       <div
         className={`h-full w-full transition-colors duration-500 ${
-          status === "done" ? "bg-green-500" : "bg-gray-300"
+          status === "done" ? "bg-primary" : "bg-gray-300"
         }`}
       />
     </div>
@@ -197,11 +197,11 @@ export function TrackerClient({
   const isComplete = currentStep === 5 && steps[4]?.status === "done";
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center slushie-gradient px-4">
+    <main className="flex min-h-screen flex-col items-center slushie-gradient px-4 py-12 sm:justify-center sm:py-0">
       <div className="w-full max-w-md">
         {/* header */}
-        <div className="mb-10 text-center">
-          <h1 className="text-3xl font-extrabold text-primary">slushie</h1>
+        <div className="mb-8 sm:mb-10 text-center">
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-primary">slushie</h1>
           <p className="mt-2 text-foreground text-sm">
             {isComplete
               ? `${clientName}, your tool is ready.`
@@ -213,14 +213,16 @@ export function TrackerClient({
         </div>
 
         {/* step list */}
-        <div className="rounded-2xl bg-white/80 p-6 shadow-lg backdrop-blur-sm">
+        <div className="rounded-2xl bg-white/80 p-4 sm:p-6 shadow-lg backdrop-blur-sm">
           {steps.map((step, index) => (
             <div key={step.step}>
-              <div className="flex items-center gap-4">
-                <StepIndicator status={step.status} />
-                <div className="flex-1">
+              <div className="flex items-start sm:items-center gap-3 sm:gap-4">
+                <div className="shrink-0">
+                  <StepIndicator status={step.status} />
+                </div>
+                <div className="flex-1 min-w-0 py-0.5">
                   <p
-                    className={`text-sm font-semibold ${
+                    className={`text-sm font-semibold leading-tight ${
                       step.status === "active"
                         ? "text-primary"
                         : step.status === "done"
@@ -231,7 +233,7 @@ export function TrackerClient({
                     {step.label}
                   </p>
                   <p
-                    className={`text-xs ${
+                    className={`text-xs leading-snug mt-0.5 ${
                       step.status === "pending" ? "text-muted/50" : "text-muted"
                     }`}
                   >
@@ -240,7 +242,7 @@ export function TrackerClient({
                 </div>
               </div>
               {index < steps.length - 1 && (
-                <div className="ml-5">
+                <div className="ml-[18px] sm:ml-5">
                   <StepConnector status={steps[index + 1].status === "pending" ? "pending" : "done"} />
                 </div>
               )}
@@ -258,20 +260,20 @@ export function TrackerClient({
 
         {/* rescheduled confirmation */}
         {rescheduled && !cancelled && (
-          <div className="mt-4 rounded-xl bg-green-50 border border-green-200 p-4 text-center">
-            <p className="text-sm font-medium text-green-700">meeting rescheduled!</p>
-            <p className="mt-1 text-xs text-green-500">you'll receive an updated calendar invite.</p>
+          <div className="mt-4 rounded-xl bg-gradient-to-r from-primary/5 to-secondary/5 border border-primary/15 p-4 text-center">
+            <p className="text-sm font-medium text-foreground">meeting rescheduled!</p>
+            <p className="mt-1 text-xs text-muted">you'll receive an updated calendar invite.</p>
           </div>
         )}
 
         {/* cancel / reschedule actions — only during step 1 for bookings */}
         {canModify && !showReschedule && (
-          <div className="mt-4 flex gap-2">
+          <div className="mt-4 flex flex-col sm:flex-row gap-2">
             <button
               type="button"
               onClick={openReschedule}
               disabled={actionLoading}
-              className="flex-1 rounded-lg border-2 border-primary bg-white px-4 py-2.5 text-sm font-medium text-primary hover:bg-primary/5 transition-colors disabled:opacity-50"
+              className="flex-1 rounded-lg border-2 border-primary bg-white px-4 py-3 sm:py-2.5 text-sm font-medium text-primary active:bg-primary/5 hover:bg-primary/5 transition-colors disabled:opacity-50"
             >
               reschedule
             </button>
@@ -279,7 +281,7 @@ export function TrackerClient({
               type="button"
               onClick={handleCancel}
               disabled={actionLoading}
-              className="flex-1 rounded-lg border-2 border-red-300 bg-white px-4 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50"
+              className="flex-1 rounded-lg border-2 border-red-300 bg-white px-4 py-3 sm:py-2.5 text-sm font-medium text-red-600 active:bg-red-50 hover:bg-red-50 transition-colors disabled:opacity-50"
             >
               {actionLoading ? "cancelling..." : "cancel booking"}
             </button>
@@ -294,7 +296,7 @@ export function TrackerClient({
               <button
                 type="button"
                 onClick={() => { setShowReschedule(false); setRescheduleSlot(null); setActionError(null); }}
-                className="text-xs text-muted hover:text-foreground"
+                className="text-xs text-muted hover:text-foreground active:text-foreground"
               >
                 cancel
               </button>
@@ -305,7 +307,7 @@ export function TrackerClient({
               <p className="text-center text-sm text-muted py-4">no available times right now.</p>
             ) : (
               <>
-                <div className="flex gap-1.5 overflow-x-auto pb-1">
+                <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1">
                   {rescheduleSlots.map((day) => (
                     <button
                       key={day.date}
@@ -314,7 +316,7 @@ export function TrackerClient({
                       className={`shrink-0 rounded-lg px-3 py-2 text-xs font-medium transition-all ${
                         rescheduleDay === day.date
                           ? "bg-foreground text-white"
-                          : "bg-white border border-gray-200 text-foreground hover:border-foreground/30"
+                          : "bg-white border border-gray-200 text-foreground active:border-foreground/30 hover:border-foreground/30"
                       }`}
                     >
                       {day.label}
@@ -322,16 +324,16 @@ export function TrackerClient({
                   ))}
                 </div>
                 {currentDaySlots && (
-                  <div className="grid grid-cols-4 gap-2">
+                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
                     {currentDaySlots.times.map((time) => (
                       <button
                         key={time.start}
                         type="button"
                         onClick={() => setRescheduleSlot(time.start)}
-                        className={`rounded-lg border-2 px-2 py-2 text-sm font-medium transition-all ${
+                        className={`rounded-lg border-2 px-2 py-2.5 sm:py-2 text-sm font-medium transition-all ${
                           rescheduleSlot === time.start
                             ? "border-primary bg-primary text-white"
-                            : "border-gray-200 bg-white text-foreground hover:border-primary/50"
+                            : "border-gray-200 bg-white text-foreground active:border-primary/50 hover:border-primary/50"
                         }`}
                       >
                         {time.label}
@@ -343,7 +345,7 @@ export function TrackerClient({
                   type="button"
                   onClick={handleReschedule}
                   disabled={!rescheduleSlot || actionLoading}
-                  className="w-full rounded-lg bg-gradient-to-r from-primary to-secondary py-2.5 text-sm font-bold text-white shadow-md transition-all hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full rounded-lg bg-gradient-to-r from-primary to-secondary py-3 sm:py-2.5 text-sm font-bold text-white shadow-md transition-all active:scale-[0.98] hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {actionLoading ? "rescheduling..." : "confirm new time"}
                 </button>
@@ -362,7 +364,7 @@ export function TrackerClient({
           <div className="mt-6 text-center">
             <a
               href={`/preview/${prototypeNanoid}`}
-              className="inline-block rounded-full bg-primary px-8 py-3 text-sm font-semibold text-white shadow-md transition-transform hover:scale-105"
+              className="block w-full sm:inline-block sm:w-auto rounded-full bg-primary px-8 py-3.5 sm:py-3 text-sm font-semibold text-white shadow-md transition-transform active:scale-[0.98] hover:scale-105"
             >
               take a look
             </a>
@@ -378,7 +380,7 @@ export function TrackerClient({
       </div>
 
       {/* footer */}
-      <div className="mt-12 text-center text-xs text-muted/60">
+      <div className="mt-8 sm:mt-12 text-center text-xs text-muted/60">
         <p>powered by slushie</p>
       </div>
     </main>
