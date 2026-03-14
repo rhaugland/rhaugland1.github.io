@@ -9,6 +9,7 @@ import {
   startCoachingScheduler,
   stopCoachingScheduler,
 } from "./coaching-scheduler";
+import { startIncrementalAnalyst, stopIncrementalAnalyst } from "./incremental-analyst";
 import { prisma } from "@slushie/db";
 
 const transcriptSubscriptions = new Map<string, Redis>();
@@ -46,6 +47,9 @@ export function startCoachingControlListener(): void {
           msg.callId,
           msg.clientIndustry
         );
+
+        // start incremental analyst scheduler (5-min warm-up, then 5-min re-runs)
+        startIncrementalAnalyst(msg.pipelineRunId);
       }
 
       if (msg.action === "stop") {
@@ -56,6 +60,9 @@ export function startCoachingControlListener(): void {
 
         // stop the coaching scheduler
         stopCoachingScheduler(msg.pipelineRunId);
+
+        // stop incremental analyst before clearing transcript buffer
+        stopIncrementalAnalyst(msg.pipelineRunId);
 
         // save full transcript to database before clearing buffer
         const fullTranscript = getFullTranscript(msg.pipelineRunId);
