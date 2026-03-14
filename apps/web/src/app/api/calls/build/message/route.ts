@@ -38,7 +38,7 @@ export async function POST(request: Request) {
 
   await prisma.pipelineRun.update({
     where: { id: pipelineRunId },
-    data: { teamDirectives: existing },
+    data: { teamDirectives: existing as unknown as import("@prisma/client").Prisma.InputJsonValue },
   });
 
   // publish after db write succeeds — avoids redis leak on db error
