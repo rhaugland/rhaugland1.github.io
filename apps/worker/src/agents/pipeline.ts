@@ -26,6 +26,14 @@ function getRedisConnection() {
   };
 }
 
+async function isBuildPaused(pipelineRunId: string): Promise<boolean> {
+  const run = await prisma.pipelineRun.findUnique({
+    where: { id: pipelineRunId },
+    select: { buildPaused: true },
+  });
+  return run?.buildPaused ?? false;
+}
+
 /**
  * the pipeline orchestrator is a single worker that subscribes to all lifecycle events
  * and routes them to the appropriate agent queues.
@@ -56,6 +64,10 @@ export function createPipelineOrchestrator() {
         }
 
         case "build.spec.ready": {
+          if (await isBuildPaused(event.pipelineRunId)) {
+            log.info({ pipelineRunId: event.pipelineRunId }, "build paused, skipping builder dispatch");
+            break;
+          }
           log.info("pipeline: build spec ready — starting phase 3 (initial build)");
           await builderQueue.add("build.spec.ready", event);
           break;
@@ -101,8 +113,14 @@ export function createPipelineOrchestrator() {
         }
 
         case "build.spec.updated": {
+          if (await isBuildPaused(event.pipelineRunId)) {
+            log.info({ pipelineRunId: event.pipelineRunId }, "build paused, skipping builder patch dispatch");
+            break;
+          }
           log.info("pipeline: spec updated — triggering builder patch");
-          await builderQueue.add("build.spec.updated", event);
+          await builderQueue.add("build.spec.updated", event, {
+            timeout: 15 * 60 * 1000, // 15-minute timeout for mid-call builder jobs
+          });
           break;
         }
 
@@ -215,4 +233,20 @@ async function setupWorkspace(event: CallEndedEvent): Promise<void> {
     workspace.coachingLogPath,
     JSON.stringify(call.coachingLog ?? [], null, 2)
   );
+
+  // load team directives for agent context
+  const pipelineRun = await prisma.pipelineRun.findUnique({
+    where: { id: event.pipelineRunId },
+    select: { teamDirectives: true },
+  });
+  const directives = pipelineRun?.teamDirectives as Array<{ text: string; timestamp: number; sentBy: string }> | null;
+  if (directives && directives.length > 0) {
+    const directivesText = directives
+      .map((d) => `[${new Date(d.timestamp).toISOString()}] ${d.sentBy}: ${d.text}`)
+      .join("\n");
+    await writeWorkspaceFile(
+      `${workspace.root}/team-directives.txt`,
+      `TEAM MEMBER FEEDBACK:\n${directivesText}\n`
+    );
+  }
 }
