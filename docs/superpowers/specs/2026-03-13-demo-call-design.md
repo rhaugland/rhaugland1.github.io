@@ -29,12 +29,14 @@ when "demo call" is clicked, the form is replaced with:
 - once ready, a **scrollable transcript panel** showing the full generated transcript. uses the same `[team]: ...` / `[client]: ...` format as real transcripts.
 - two buttons below the panel:
   - **"rework"** — clears the transcript and generates a new one (shows loading again)
-  - **"execute"** — creates client + call + pipeline run, saves the transcript, publishes `call.ended`, and redirects to `/dashboard/calls`
+  - **"execute"** — creates client + call + pipeline run, saves the transcript, publishes `call.ended`, and redirects to `/dashboard/calls` (the list page, where the call will appear with status "running" as the pipeline processes it)
 - a **"back"** link/button to return to the form without losing form field values
 
 ### state management
 
 all state lives in the page component — no new contexts or stores. the page has a mode: `"form"` | `"loading"` | `"review"`. form field values are preserved when switching between form and review states (so "back" restores the form as it was).
+
+on generation failure, the page returns to `"form"` mode and shows the error inline (using the existing `error` state and error display pattern). the user can retry by clicking "demo call" again. if the user navigates away during generation, the in-flight fetch is abandoned — no server-side cleanup is needed since no database records are created during generation.
 
 ---
 
@@ -45,7 +47,7 @@ all state lives in the page component — no new contexts or stores. the page ha
 generates a realistic discovery call transcript using the anthropic sdk.
 
 - **auth:** requires valid session
-- **body:** `{ clientName: string, industry: string, contactName?: string }`
+- **body:** `{ clientName: string, industry?: string, contactName?: string }` (industry defaults to `"other"` if not provided, matching existing form behavior)
 - **action:** calls claude (anthropic sdk, `@anthropic-ai/sdk`) with a system prompt and user message. this is a single prompt→response call, not an agent workflow.
 - **response:** `{ transcript: string }`
 - **error handling:** returns 500 with `{ error: "failed to generate transcript" }` if claude call fails
@@ -76,7 +78,7 @@ creates the client, call, and pipeline run, then triggers the post-call pipeline
 - **auth:** requires valid session
 - **body:** `{ clientName: string, industry: string, contactName?: string, contactEmail?: string, owner?: string, transcript: string }`
 - **action:**
-  1. creates a Client record (name, industry, contactName, contactEmail, owner — same fields as `/api/calls/start`)
+  1. creates a new Client record every time (name, industry, contactName, contactEmail, owner — same fields as `/api/calls/start`). duplicate client names are acceptable for demo calls.
   2. creates a Call record with:
      - `transcript` set to the provided transcript
      - `startedAt` set to 20 minutes ago (`new Date(Date.now() - 20 * 60 * 1000)`)
