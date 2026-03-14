@@ -19,7 +19,11 @@ export type EventType =
   | "tracker.update"
   | "tracker.complete"
   | "postmortem.complete"
-  | "skills.updated";
+  | "skills.updated"
+  | "build.message"
+  | "build.paused"
+  | "build.resumed"
+  | "analyst.incremental";
 
 export interface BaseEvent {
   type: EventType;
@@ -215,6 +219,36 @@ export interface SkillsUpdatedEvent extends BaseEvent {
   };
 }
 
+export interface BuildMessageEvent extends BaseEvent {
+  type: "build.message";
+  data: {
+    text: string;
+    sentBy: string;
+  };
+}
+
+export interface BuildPausedEvent extends BaseEvent {
+  type: "build.paused";
+  data: {
+    pausedBy: string;
+  };
+}
+
+export interface BuildResumedEvent extends BaseEvent {
+  type: "build.resumed";
+  data: {
+    resumedBy: string;
+  };
+}
+
+export interface AnalystIncrementalEvent extends BaseEvent {
+  type: "analyst.incremental";
+  data: {
+    transcript: string;
+    pipelineRunId: string;
+  };
+}
+
 export type SlushieEvent =
   | TranscriptChunkEvent
   | CoachingSuggestionEvent
@@ -236,4 +270,8 @@ export type SlushieEvent =
   | TrackerCompleteEvent
   | ClientNotifiedEvent
   | PostmortemCompleteEvent
-  | SkillsUpdatedEvent;
+  | SkillsUpdatedEvent
+  | BuildMessageEvent
+  | BuildPausedEvent
+  | BuildResumedEvent
+  | AnalystIncrementalEvent;
