@@ -1,6 +1,7 @@
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import { TeamMenu } from "@/components/team-menu";
 
 export default async function DashboardLayout({
   children,
@@ -19,10 +20,15 @@ export default async function DashboardLayout({
             <Link href="/dashboard/calls" className="hover:text-white">calls</Link>
             <Link href="/dashboard/builds" className="hover:text-white">builds</Link>
             <Link href="/dashboard/clients" className="hover:text-white">clients</Link>
+            <Link href="/dashboard/bookings" className="hover:text-white">bookings</Link>
             <Link href="/dashboard/postmortems" className="hover:text-white">postmortems</Link>
             <Link href="/dashboard/dev/chat" className="hover:text-white">dev chat</Link>
           </div>
-          <span className="text-sm text-muted">{session.user?.email}</span>
+          <div className="flex items-center gap-3">
+            <TeamMenu />
+            <span className="text-sm text-muted">{session.user?.email}</span>
+            <a href="/api/auth/signout" className="text-sm text-primary hover:underline">sign out</a>
+          </div>
         </div>
       </nav>
       <main className="p-6">{children}</main>
