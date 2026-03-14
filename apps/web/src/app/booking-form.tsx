@@ -55,6 +55,7 @@ export function BookingForm() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
+  const [booked, setBooked] = useState<{ slug: string; bookingId: string } | null>(null);
   const techInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -133,7 +134,7 @@ export function BookingForm() {
       }
 
       const data = await res.json();
-      router.push(`/track/${data.trackingSlug}`);
+      setBooked({ slug: data.trackingSlug, bookingId: data.bookingId });
     } catch {
       setError("something went wrong. please try again.");
       setSubmitting(false);
@@ -150,6 +151,58 @@ export function BookingForm() {
   const atToolLimit = techStack.length >= maxTools;
 
   const currentDaySlots = slots.find((s) => s.date === selectedDay);
+
+  const trackingUrl = booked
+    ? `${typeof window !== "undefined" ? window.location.origin : ""}/track/${booked.slug}`
+    : "";
+
+  if (booked) {
+    return (
+      <div className="text-center space-y-6">
+        <div className="inline-flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
+          <svg className="h-8 w-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+          </svg>
+        </div>
+        <div>
+          <h3 className="text-2xl font-extrabold text-foreground">blend booked!</h3>
+          <p className="mt-2 text-sm text-muted">
+            you're all set, {name}. we'll see you at your meeting.
+          </p>
+        </div>
+        <div className="rounded-xl bg-white border border-gray-200 p-5 text-left space-y-3">
+          <p className="text-xs font-medium text-muted">your tracking link</p>
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              readOnly
+              value={trackingUrl}
+              className="flex-1 rounded-lg border border-gray-200 bg-background px-3 py-2 text-sm text-foreground"
+              onClick={(e) => (e.target as HTMLInputElement).select()}
+            />
+            <button
+              type="button"
+              onClick={() => {
+                navigator.clipboard.writeText(trackingUrl);
+              }}
+              className="shrink-0 rounded-lg bg-foreground px-3 py-2 text-xs font-medium text-white hover:bg-foreground/80"
+            >
+              copy
+            </button>
+          </div>
+          <p className="text-xs text-muted">
+            bookmark this link — it's your live view of every step, from meeting to delivery.
+          </p>
+        </div>
+        <a
+          href={`/track/${booked.slug}`}
+          className="inline-block w-full rounded-lg bg-gradient-to-r from-primary to-secondary py-3.5 text-sm font-bold text-white shadow-lg transition-all hover:shadow-xl hover:scale-[1.01]"
+        >
+          view your progress →
+        </a>
+      </div>
+    );
+  }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">

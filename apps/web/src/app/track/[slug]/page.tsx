@@ -31,7 +31,7 @@ export default async function TrackerPage({
           client: { select: { name: true } },
         },
       },
-      booking: { select: { businessName: true } },
+      booking: { select: { id: true, businessName: true } },
     },
   });
 
@@ -67,6 +67,7 @@ export default async function TrackerPage({
       initialSteps={steps}
       currentStep={tracker.currentStep}
       prototypeNanoid={tracker.prototypeNanoid}
+      bookingId={tracker.booking?.id ?? null}
     />
   );
 }
