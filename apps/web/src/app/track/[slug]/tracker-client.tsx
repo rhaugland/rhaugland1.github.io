@@ -162,7 +162,11 @@ export function TrackerClient({
     : null;
 
   // find the active step to highlight in detail card
-  const activeStep = steps.find((s) => s.status === "active") ?? steps[steps.length - 1];
+  // for bookings at step 1 (meeting confirmed but not yet happened), show step 1 info
+  const waitingForMeeting = bookingId && currentStep <= 1;
+  const activeStep = waitingForMeeting
+    ? steps[0]
+    : (steps.find((s) => s.status === "active") ?? steps.find((s) => s.status === "pending") ?? null);
 
   return (
     <main className="flex min-h-screen flex-col items-center slushie-gradient px-4 py-10 sm:justify-center sm:py-0">
@@ -252,8 +256,22 @@ export function TrackerClient({
           </div>
         </div>
 
-        {/* active step detail card */}
-        {!isComplete && activeStep && (
+        {/* meeting info card — shown while waiting for meeting (step 1) */}
+        {waitingForMeeting && !cancelled && (
+          <div className="mt-4 rounded-xl bg-white border border-gray-200 p-4 sm:p-5">
+            <p className="text-sm font-bold text-foreground">meeting confirmed</p>
+            <p className="text-xs text-muted mt-0.5">your blend is scheduled. we'll see you there.</p>
+            {meetingLabel && (
+              <div className="mt-3 rounded-lg bg-gradient-to-r from-primary/5 to-secondary/5 border border-primary/15 px-3 py-3">
+                <p className="text-xs text-muted">your meeting</p>
+                <p className="text-sm font-bold text-foreground mt-0.5">{meetingLabel}</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* active step detail card — shown for steps beyond the meeting */}
+        {!isComplete && !waitingForMeeting && activeStep && (
           <div className="mt-4 rounded-xl bg-white border border-gray-200 p-4 sm:p-5">
             <div className="flex items-center gap-2 mb-2">
               <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
@@ -262,14 +280,6 @@ export function TrackerClient({
             <p className="text-sm font-bold text-foreground">{activeStep.label}</p>
             <p className="text-xs text-muted mt-0.5">{activeStep.subtitle}</p>
 
-            {/* step 1: show meeting date/time */}
-            {activeStep.step === 1 && meetingLabel && (
-              <div className="mt-3 rounded-lg bg-gradient-to-r from-primary/5 to-secondary/5 border border-primary/15 px-3 py-2.5">
-                <p className="text-xs text-muted">your meeting</p>
-                <p className="text-sm font-bold text-foreground mt-0.5">{meetingLabel}</p>
-              </div>
-            )}
-
             {/* step 2: show join call link */}
             {activeStep.step === 2 && (
               <a
@@ -277,7 +287,7 @@ export function TrackerClient({
                 className="mt-3 flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-primary to-secondary px-4 py-3 text-sm font-bold text-white shadow-md transition-all active:scale-[0.98] hover:shadow-lg"
               >
                 <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2 2v8a2 2 0 002 2z" />
                 </svg>
                 join your call
               </a>
