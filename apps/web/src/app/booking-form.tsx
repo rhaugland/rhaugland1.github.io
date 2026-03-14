@@ -72,7 +72,7 @@ export function BookingForm() {
 
   function addTag(tag: string) {
     const cleaned = tag.trim().toLowerCase();
-    if (cleaned && !techStack.includes(cleaned)) {
+    if (cleaned && !techStack.includes(cleaned) && !atToolLimit) {
       setTechStack([...techStack, cleaned]);
     }
     setTechInput("");
@@ -140,11 +140,14 @@ export function BookingForm() {
     }
   }
 
-  const planOptions: Array<{ value: Plan; label: string; price: string }> = [
-    { value: "SINGLE_SCOOP", label: "single scoop", price: "$3,500" },
-    { value: "DOUBLE_BLEND", label: "double blend", price: "$6,000" },
-    { value: "TRIPLE_FREEZE", label: "triple freeze", price: "$8,500" },
+  const planOptions: Array<{ value: Plan; label: string; price: string; maxTools: number }> = [
+    { value: "SINGLE_SCOOP", label: "single scoop", price: "$3,500", maxTools: 1 },
+    { value: "DOUBLE_BLEND", label: "double blend", price: "$6,000", maxTools: 2 },
+    { value: "TRIPLE_FREEZE", label: "triple freeze", price: "$8,500", maxTools: 3 },
   ];
+
+  const maxTools = planOptions.find((o) => o.value === plan)!.maxTools;
+  const atToolLimit = techStack.length >= maxTools;
 
   const currentDaySlots = slots.find((s) => s.date === selectedDay);
 
@@ -205,7 +208,13 @@ export function BookingForm() {
             <button
               key={opt.value}
               type="button"
-              onClick={() => setPlan(opt.value)}
+              onClick={() => {
+                setPlan(opt.value);
+                // trim tags if switching to a plan with fewer tools
+                if (techStack.length > opt.maxTools) {
+                  setTechStack(techStack.slice(0, opt.maxTools));
+                }
+              }}
               className={`rounded-lg border-2 px-3 py-3 text-center transition-all ${
                 plan === opt.value
                   ? "border-primary bg-primary text-white"
@@ -264,20 +273,22 @@ export function BookingForm() {
             ))}
           </div>
           <div className="relative">
-            <input
-              ref={techInputRef}
-              type="text"
-              value={techInput}
-              onChange={(e) => {
-                setTechInput(e.target.value);
-                setShowSuggestions(true);
-              }}
-              onFocus={() => setShowSuggestions(true)}
-              onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
-              onKeyDown={handleTechKeyDown}
-              className="w-full border-0 bg-transparent p-0 py-1 text-sm text-foreground focus:outline-none focus:ring-0"
-              placeholder={techStack.length === 0 ? "type or pick — google sheets, quickbooks, slack..." : "add another..."}
-            />
+            {!atToolLimit && (
+              <input
+                ref={techInputRef}
+                type="text"
+                value={techInput}
+                onChange={(e) => {
+                  setTechInput(e.target.value);
+                  setShowSuggestions(true);
+                }}
+                onFocus={() => setShowSuggestions(true)}
+                onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+                onKeyDown={handleTechKeyDown}
+                className="w-full border-0 bg-transparent p-0 py-1 text-sm text-foreground focus:outline-none focus:ring-0"
+                placeholder={techStack.length === 0 ? "type or pick — google sheets, quickbooks, slack..." : "add another..."}
+              />
+            )}
             {/* suggestions dropdown */}
             {showSuggestions && filteredSuggestions.length > 0 && (
               <div className="absolute left-0 top-full z-10 mt-1 w-full rounded-lg border border-gray-200 bg-white shadow-lg">
@@ -297,7 +308,9 @@ export function BookingForm() {
           </div>
         </div>
         <p className="mt-1 text-xs text-muted">
-          press enter to add, or pick from suggestions
+          {atToolLimit
+            ? `${maxTools} tool${maxTools > 1 ? "s" : ""} max for ${planOptions.find((o) => o.value === plan)!.label}`
+            : `${techStack.length}/${maxTools} — press enter to add, or pick from suggestions`}
         </p>
       </div>
 
