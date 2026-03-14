@@ -1,11 +1,17 @@
 import { prisma } from "@slushie/db";
 import Link from "next/link";
+import { DeleteCallButton } from "./delete-call-button";
+import CodebaseNameInput from "@/components/call/codebase-name-input";
 
 export default async function CallsPage() {
   const calls = await prisma.call.findMany({
     include: {
       client: true,
       pipelineRun: true,
+      codebases: {
+        where: { source: "generated", name: null },
+        select: { id: true },
+      },
     },
     orderBy: { createdAt: "desc" },
     take: 50,
@@ -46,6 +52,9 @@ export default async function CallsPage() {
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-muted">
                   duration
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-muted">
+                  codebase
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-muted">
                   actions
@@ -94,17 +103,25 @@ export default async function CallsPage() {
                     <td className="px-4 py-3 text-sm text-muted">
                       {durationStr}
                     </td>
-                    <td className="px-4 py-3">
-                      {isLive && call.pipelineRun ? (
-                        <Link
-                          href={`/dashboard/calls/live/${call.pipelineRun.id}`}
-                          className="text-sm font-semibold text-primary hover:underline"
-                        >
-                          join call
-                        </Link>
+                    <td className="px-4 py-3 text-sm">
+                      {call.codebases.length > 0 ? (
+                        <CodebaseNameInput codebaseId={call.codebases[0].id} />
                       ) : (
-                        <span className="text-sm text-muted">--</span>
+                        <span className="text-xs text-muted">--</span>
                       )}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-3">
+                        {isLive && call.pipelineRun ? (
+                          <Link
+                            href={`/dashboard/calls/live/${call.pipelineRun.id}`}
+                            className="text-sm font-semibold text-primary hover:underline"
+                          >
+                            join call
+                          </Link>
+                        ) : null}
+                        <DeleteCallButton callId={call.id} />
+                      </div>
                     </td>
                   </tr>
                 );

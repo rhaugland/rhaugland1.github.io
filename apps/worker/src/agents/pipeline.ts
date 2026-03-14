@@ -201,6 +201,26 @@ export function createPipelineOrchestrator() {
             })
           );
 
+          // auto-create generated codebase record
+          try {
+            const completedRun = await prisma.pipelineRun.findUnique({
+              where: { id: event.pipelineRunId },
+              select: { clientId: true, callId: true },
+            });
+            if (completedRun) {
+              await prisma.codebase.create({
+                data: {
+                  clientId: completedRun.clientId,
+                  callId: completedRun.callId,
+                  source: "generated",
+                  path: event.pipelineRunId,
+                },
+              });
+            }
+          } catch (err) {
+            log.error(err, "pipeline: failed to create generated codebase record");
+          }
+
           break;
         }
 

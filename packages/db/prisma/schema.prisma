@@ -23,6 +23,7 @@ model Client {
 
   calls           Call[]
   pipelineRuns    PipelineRun[]
+  codebases       Codebase[]
 }
 
 model Employee {
@@ -49,6 +50,7 @@ model Call {
   client       Client   @relation(fields: [clientId], references: [id])
   pipelineRun  PipelineRun?
   analysis     Analysis?
+  codebases    Codebase[]
 }
 
 model PipelineRun {
@@ -176,4 +178,20 @@ model NotificationMessage {
   createdAt     DateTime @default(now())
 
   @@index([pipelineRunId])
+}
+
+model Codebase {
+  id        String   @id @default(cuid())
+  name      String?
+  clientId  String
+  callId    String?
+  source    String
+  path      String
+  filename  String?
+  sizeBytes Int?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  client Client @relation(fields: [clientId], references: [id])
+  call   Call?  @relation(fields: [callId], references: [id])
 }

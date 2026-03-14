@@ -1,6 +1,10 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@slushie/db";
 import { NextResponse } from "next/server";
+import path from "path";
+import fs from "fs/promises";
+
+const WORKSPACE_ROOT = process.env.WORKSPACE_ROOT ?? "/tmp/slushie-workspaces";
 
 export async function POST(request: Request) {
   const session = await auth();
@@ -9,11 +13,11 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json();
-  const { clientId, clientName, industry } = body;
+  const { clientId, clientName, industry, contactName, contactEmail, owner, codebaseId } = body;
 
-  if (!clientName) {
+  if (!clientId && !clientName) {
     return NextResponse.json(
-      { error: "clientName is required" },
+      { error: "clientId or clientName is required" },
       { status: 400 }
     );
   }
@@ -30,6 +34,9 @@ export async function POST(request: Request) {
       data: {
         name: clientName,
         industry: industry ?? "unknown",
+        contactName: contactName || null,
+        contactEmail: contactEmail || null,
+        owner: owner || session.user?.name || session.user?.email || null,
       },
     });
   }
@@ -51,6 +58,24 @@ export async function POST(request: Request) {
       status: "RUNNING",
     },
   });
+
+  // seed workspace from codebase if provided
+  if (codebaseId) {
+    const codebase = await prisma.codebase.findUnique({
+      where: { id: codebaseId },
+      select: { path: true },
+    });
+
+    if (codebase) {
+      const sourcePath = path.resolve(WORKSPACE_ROOT, codebase.path);
+      if (!sourcePath.startsWith(path.resolve(WORKSPACE_ROOT))) {
+        return NextResponse.json({ error: "invalid codebase path" }, { status: 400 });
+      }
+      const destPath = path.join(WORKSPACE_ROOT, pipelineRun.id);
+      await fs.mkdir(destPath, { recursive: true });
+      await fs.cp(sourcePath, destPath, { recursive: true });
+    }
+  }
 
   return NextResponse.json({
     callId: call.id,
