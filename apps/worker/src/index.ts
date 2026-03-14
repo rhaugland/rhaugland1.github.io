@@ -16,6 +16,7 @@ import { createNotificationWorker } from "./workers/notification.worker";
 import { createTrackerInitWorker } from "./workers/tracker-init.worker";
 import { createDeliveryWorker } from "./workers/delivery.worker";
 import { createPostmortemWorker } from "./workers/postmortem";
+import { setupCatchupListener, stopCatchupListener } from "./incremental-analyst";
 
 async function main() {
   logger.info("slushie worker starting...");
@@ -68,6 +69,10 @@ async function main() {
     });
   }
 
+  // incremental analyst catch-up listener (for resume signals)
+  setupCatchupListener();
+  logger.info("incremental analyst catch-up listener started");
+
   logger.info(
     { workers: workers.map((w) => w.name) },
     "slushie worker is running. all agents registered."
@@ -76,6 +81,7 @@ async function main() {
   // graceful shutdown
   const shutdown = async () => {
     logger.info("shutting down workers...");
+    stopCatchupListener();
     await Promise.all(workers.map((w) => w.close()));
     process.exit(0);
   };
