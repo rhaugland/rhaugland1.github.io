@@ -156,11 +156,23 @@ export function BookingForm() {
     ? `${typeof window !== "undefined" ? window.location.origin : ""}/track/${booked.slug}`
     : "";
 
+  const meetingLabel = selectedSlot
+    ? new Date(selectedSlot).toLocaleDateString("en-US", {
+        weekday: "long",
+        month: "long",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      })
+    : null;
+
+  const [copied, setCopied] = useState(false);
+
   if (booked) {
     return (
-      <div className="text-center space-y-6">
-        <div className="inline-flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
-          <svg className="h-8 w-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <div className="text-center space-y-5">
+        <div className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-primary/20 to-secondary/20">
+          <svg className="h-7 w-7 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
           </svg>
         </div>
@@ -170,35 +182,39 @@ export function BookingForm() {
             you're all set, {name}. we'll see you at your meeting.
           </p>
         </div>
-        <div className="rounded-xl bg-white border border-gray-200 p-5 text-left space-y-3">
-          <p className="text-xs font-medium text-muted">your tracking link</p>
-          <div className="flex items-center gap-2">
-            <input
-              type="text"
-              readOnly
-              value={trackingUrl}
-              className="flex-1 rounded-lg border border-gray-200 bg-background px-3 py-2 text-sm text-foreground"
-              onClick={(e) => (e.target as HTMLInputElement).select()}
-            />
-            <button
-              type="button"
-              onClick={() => {
-                navigator.clipboard.writeText(trackingUrl);
-              }}
-              className="shrink-0 rounded-lg bg-foreground px-3 py-2 text-xs font-medium text-white hover:bg-foreground/80"
-            >
-              copy
-            </button>
+
+        {/* meeting time */}
+        {meetingLabel && (
+          <div className="rounded-xl bg-gradient-to-r from-primary/5 to-secondary/5 border border-primary/15 px-4 py-3">
+            <p className="text-xs font-medium text-muted">your meeting</p>
+            <p className="mt-0.5 text-sm font-bold text-foreground">{meetingLabel}</p>
           </div>
+        )}
+
+        {/* tracking link */}
+        <div className="rounded-xl bg-white border border-gray-200 p-4 text-left space-y-2">
+          <p className="text-xs font-medium text-muted">your tracking link</p>
+          <button
+            type="button"
+            onClick={() => {
+              navigator.clipboard.writeText(trackingUrl);
+              setCopied(true);
+              setTimeout(() => setCopied(false), 2000);
+            }}
+            className="w-full rounded-lg border border-gray-200 bg-background px-3 py-2.5 text-left text-xs text-foreground break-all active:bg-gray-100 transition-colors"
+          >
+            {trackingUrl}
+          </button>
           <p className="text-xs text-muted">
-            bookmark this link — it's your live view of every step, from meeting to delivery.
+            {copied ? "copied!" : "tap to copy — bookmark it to track every step from meeting to delivery."}
           </p>
         </div>
+
         <a
           href={`/track/${booked.slug}`}
-          className="inline-block w-full rounded-lg bg-gradient-to-r from-primary to-secondary py-3.5 text-sm font-bold text-white shadow-lg transition-all hover:shadow-xl hover:scale-[1.01]"
+          className="block w-full rounded-lg bg-gradient-to-r from-primary to-secondary py-3.5 text-sm font-bold text-white shadow-lg transition-all hover:shadow-xl active:scale-[0.98]"
         >
-          view your progress →
+          view your progress
         </a>
       </div>
     );
