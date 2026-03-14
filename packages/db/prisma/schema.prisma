@@ -24,6 +24,7 @@ model Client {
   calls           Call[]
   pipelineRuns    PipelineRun[]
   codebases       Codebase[]
+  bookings        Booking[]
 }
 
 model Employee {
@@ -36,6 +37,36 @@ model Employee {
 enum ClientStage {
   WORKING
   DONE
+}
+
+enum BookingPlan {
+  SINGLE_SCOOP
+  DOUBLE_BLEND
+  TRIPLE_FREEZE
+}
+
+enum BookingStatus {
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+}
+
+model Booking {
+  id              String        @id @default(cuid())
+  name            String
+  email           String
+  businessName    String
+  plan            BookingPlan
+  description     String        @db.Text
+  meetingTime     DateTime
+  status          BookingStatus @default(CONFIRMED)
+  calendarEventId String?
+  clientId        String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  client        Client?       @relation(fields: [clientId], references: [id])
+  tracker       Tracker?
 }
 
 model Call {
@@ -132,17 +163,19 @@ model GapReport {
 }
 
 model Tracker {
-  id            String   @id @default(cuid())
-  pipelineRunId String   @unique
-  slug          String   @unique
-  prototypeNanoid String?  @unique
-  currentStep   Int      @default(1)
-  steps         Json?
-  notifiedAt    DateTime?
-  expiresAt     DateTime?
-  createdAt     DateTime @default(now())
+  id              String       @id @default(cuid())
+  pipelineRunId   String?      @unique
+  bookingId       String?      @unique
+  slug            String       @unique
+  prototypeNanoid String?      @unique
+  currentStep     Int          @default(1)
+  steps           Json?
+  notifiedAt      DateTime?
+  expiresAt       DateTime?
+  createdAt       DateTime     @default(now())
 
-  pipelineRun   PipelineRun @relation(fields: [pipelineRunId], references: [id])
+  pipelineRun     PipelineRun? @relation(fields: [pipelineRunId], references: [id])
+  booking         Booking?     @relation(fields: [bookingId], references: [id])
 }
 
 model Postmortem {
