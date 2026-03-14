@@ -308,9 +308,7 @@ export function BookingForm() {
           </div>
         </div>
         <p className="mt-1 text-xs text-muted">
-          {atToolLimit
-            ? `${maxTools} tool${maxTools > 1 ? "s" : ""} max for ${planOptions.find((o) => o.value === plan)!.label}`
-            : `${techStack.length}/${maxTools} — press enter to add, or pick from suggestions`}
+          {planOptions.find((o) => o.value === plan)!.label} includes {maxTools} backend plug-in{maxTools > 1 ? "s" : ""} — upgrade your flavor for more
         </p>
       </div>
 
