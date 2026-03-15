@@ -3,6 +3,7 @@ import { prisma } from "@slushie/db";
 import { auth } from "@/lib/auth";
 import { createEventQueue, createEvent } from "@slushie/events";
 import Redis from "ioredis";
+import { sendPaymentDue } from "@/lib/email";
 
 const builderQueue = createEventQueue("builder");
 
@@ -110,6 +111,29 @@ export async function POST(
     );
   } finally {
     redis.disconnect();
+  }
+
+  // email client: payment due (step 6)
+  const PLAN_LABELS: Record<string, string> = {
+    SINGLE_SCOOP: "single scoop",
+    DOUBLE_BLEND: "double blend",
+    TRIPLE_FREEZE: "triple freeze",
+  };
+  const PLAN_PRICES: Record<string, string> = {
+    SINGLE_SCOOP: "$3,500",
+    DOUBLE_BLEND: "$6,000",
+    TRIPLE_FREEZE: "$8,500",
+  };
+
+  if (booking.email && tracker.slug) {
+    sendPaymentDue({
+      to: booking.email,
+      name: booking.name,
+      businessName: booking.businessName,
+      planLabel: PLAN_LABELS[booking.plan] ?? booking.plan,
+      planPrice: PLAN_PRICES[booking.plan] ?? "$0",
+      slug: tracker.slug,
+    }).catch((err) => console.error("[email] payment due failed:", err));
   }
 
   return NextResponse.json({ ok: true, action: "completed", currentStep: nextStep });

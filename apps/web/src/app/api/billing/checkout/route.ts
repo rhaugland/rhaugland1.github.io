@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@slushie/db";
 import Stripe from "stripe";
+import { sendSurveyOpen } from "@/lib/email";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
@@ -27,7 +28,7 @@ export async function POST(request: Request) {
   const tracker = await prisma.tracker.findUnique({
     where: { slug },
     include: {
-      booking: { select: { id: true, plan: true, businessName: true, email: true } },
+      booking: { select: { id: true, name: true, plan: true, businessName: true, email: true } },
     },
   });
 
@@ -71,6 +72,14 @@ export async function POST(request: Request) {
       where: { id: tracker.id },
       data: { paidAt: new Date(), currentStep: 7, steps: updatedSteps },
     });
+
+    // email client: survey is open
+    sendSurveyOpen({
+      to: tracker.booking.email,
+      name: tracker.booking.name,
+      businessName: tracker.booking.businessName,
+      slug: tracker.slug,
+    }).catch((err) => console.error("[email] survey open (free) failed:", err));
 
     return NextResponse.json({ free: true });
   }

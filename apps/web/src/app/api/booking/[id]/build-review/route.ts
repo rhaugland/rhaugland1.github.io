@@ -3,6 +3,7 @@ import { prisma } from "@slushie/db";
 import { auth } from "@/lib/auth";
 import { createEventQueue, createEvent } from "@slushie/events";
 import Redis from "ioredis";
+import { sendBuildReadyForApproval } from "@/lib/email";
 
 const builderQueue = createEventQueue("builder");
 
@@ -79,6 +80,16 @@ export async function POST(
       );
     } finally {
       redis.disconnect();
+    }
+
+    // email client: build is ready for their review (step 4)
+    if (nextStep === 4 && booking.email && tracker.slug) {
+      sendBuildReadyForApproval({
+        to: booking.email,
+        name: booking.name,
+        businessName: booking.businessName,
+        slug: tracker.slug,
+      }).catch((err) => console.error("[email] build ready failed:", err));
     }
 
     return NextResponse.json({ ok: true, action: "approved", currentStep: nextStep });

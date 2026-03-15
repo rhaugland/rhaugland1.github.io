@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@slushie/db";
 import Stripe from "stripe";
 import Redis from "ioredis";
+import { sendSurveyOpen } from "@/lib/email";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
@@ -34,6 +35,7 @@ export async function POST(request: Request) {
 
     const tracker = await prisma.tracker.findUnique({
       where: { id: trackerId },
+      include: { booking: { select: { name: true, email: true, businessName: true } } },
     });
 
     if (!tracker || tracker.paidAt) {
@@ -81,6 +83,16 @@ export async function POST(request: Request) {
       );
     } finally {
       redis.disconnect();
+    }
+
+    // email client: survey is open (step 7)
+    if (tracker.booking?.email) {
+      sendSurveyOpen({
+        to: tracker.booking.email,
+        name: tracker.booking.name,
+        businessName: tracker.booking.businessName,
+        slug: tracker.slug,
+      }).catch((err) => console.error("[email] survey open failed:", err));
     }
   }
 

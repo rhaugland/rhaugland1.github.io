@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@slushie/db";
 import { nanoid } from "nanoid";
 import { createCalendarEvent } from "@/lib/google-calendar";
+import { sendBookingConfirmed } from "@/lib/email";
 
 const BOOKING_STEPS = [
   { step: 1, label: "meeting confirmed", subtitle: "your blend is scheduled. we'll see you there." },
@@ -135,6 +136,16 @@ export async function POST(request: Request) {
         expiresAt,
       },
     });
+
+    // send confirmation email with tracker link
+    sendBookingConfirmed({
+      to: email,
+      name,
+      businessName,
+      planLabel: planLabels[plan] ?? plan,
+      meetingTime,
+      slug,
+    }).catch((err) => console.error("[email] booking confirmed failed:", err));
 
     return NextResponse.json({
       trackingSlug: tracker.slug,

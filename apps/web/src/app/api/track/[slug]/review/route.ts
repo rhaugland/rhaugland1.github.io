@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@slushie/db";
 import Redis from "ioredis";
+import { sendCredentialsNeeded } from "@/lib/email";
 
 export async function POST(
   request: Request,
@@ -19,7 +20,7 @@ export async function POST(
 
   const tracker = await prisma.tracker.findUnique({
     where: { slug },
-    include: { booking: { select: { id: true } } },
+    include: { booking: { select: { id: true, name: true, email: true, businessName: true } } },
   });
 
   if (!tracker) {
@@ -76,6 +77,16 @@ export async function POST(
       );
     } finally {
       redis.disconnect();
+    }
+
+    // email client: credentials needed (step 5)
+    if (tracker.booking?.email) {
+      sendCredentialsNeeded({
+        to: tracker.booking.email,
+        name: tracker.booking.name,
+        businessName: tracker.booking.businessName,
+        slug,
+      }).catch((err) => console.error("[email] credentials needed failed:", err));
     }
 
     return NextResponse.json({ ok: true, action: "approved", currentStep: nextStep });
