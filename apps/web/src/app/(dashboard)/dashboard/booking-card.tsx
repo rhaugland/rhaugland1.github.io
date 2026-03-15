@@ -14,6 +14,8 @@ interface BookingCardProps {
   employees: Array<{ id: string; name: string }>;
   stepLabel?: string;
   stepNumber?: number;
+  buildStatus?: "none" | "analyzing" | "building" | "ready";
+  buildPreviewUrl?: string;
 }
 
 export function BookingCard({
@@ -27,6 +29,8 @@ export function BookingCard({
   employees,
   stepLabel,
   stepNumber,
+  buildStatus,
+  buildPreviewUrl,
 }: BookingCardProps) {
   const router = useRouter();
   const [claiming, setClaiming] = useState(false);
@@ -100,6 +104,35 @@ export function BookingCard({
         </svg>
         {meetingLabel}
       </div>
+
+      {/* build status */}
+      {buildStatus && buildStatus !== "none" && (
+        <div className="mt-2">
+          {buildStatus === "analyzing" && (
+            <div className="flex items-center gap-1.5 rounded-md bg-amber-50 border border-amber-200 px-2 py-1.5">
+              <div className="h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
+              <span className="text-[10px] font-medium text-amber-700">analyzing intake...</span>
+            </div>
+          )}
+          {buildStatus === "building" && (
+            <div className="flex items-center gap-1.5 rounded-md bg-blue-50 border border-blue-200 px-2 py-1.5">
+              <div className="h-2 w-2 rounded-full bg-blue-400 animate-pulse" />
+              <span className="text-[10px] font-medium text-blue-700">building prototype...</span>
+            </div>
+          )}
+          {buildStatus === "ready" && (
+            <a
+              href={buildPreviewUrl ?? "#"}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 rounded-md bg-gradient-to-r from-primary/10 to-secondary/10 border border-primary/20 px-2 py-1.5 hover:border-primary/40 transition-colors"
+            >
+              <div className="h-2 w-2 rounded-full bg-primary" />
+              <span className="text-[10px] font-bold text-primary">initial build ready — view</span>
+            </a>
+          )}
+        </div>
+      )}
 
       {/* assignee / claim */}
       <div className="mt-3 relative">

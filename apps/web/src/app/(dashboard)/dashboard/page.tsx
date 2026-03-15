@@ -32,7 +32,37 @@ export default async function DashboardPage() {
     where: { status: "CONFIRMED" },
     orderBy: { meetingTime: "asc" },
     include: {
-      tracker: { select: { slug: true, currentStep: true } },
+      tracker: {
+        select: {
+          slug: true,
+          currentStep: true,
+          pipelineRun: {
+            select: {
+              id: true,
+              status: true,
+              call: {
+                select: {
+                  analysis: {
+                    select: {
+                      buildSpecs: {
+                        orderBy: { version: "desc" },
+                        take: 1,
+                        select: {
+                          prototypes: {
+                            orderBy: { version: "desc" },
+                            take: 1,
+                            select: { id: true, previewUrl: true, version: true },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
       assignee: { select: { id: true, name: true } },
     },
   });
@@ -67,6 +97,24 @@ export default async function DashboardPage() {
   });
 
   const hasUnclaimed = unclaimedBookings.length > 0;
+
+  function getBuildStatus(booking: (typeof bookings)[number]): {
+    status: "none" | "analyzing" | "building" | "ready";
+    previewUrl?: string;
+  } {
+    const run = booking.tracker?.pipelineRun;
+    if (!run) return { status: "none" };
+
+    const prototype = run.call?.analysis?.buildSpecs?.[0]?.prototypes?.[0];
+    if (prototype?.previewUrl) {
+      return { status: "ready", previewUrl: prototype.previewUrl };
+    }
+
+    const hasBuildSpec = (run.call?.analysis?.buildSpecs?.length ?? 0) > 0;
+    if (hasBuildSpec) return { status: "building" };
+
+    return { status: "analyzing" };
+  }
 
   return (
     <div>
@@ -111,6 +159,7 @@ export default async function DashboardPage() {
             {myBookings.map((booking) => {
               const currentStep = booking.tracker?.currentStep ?? 0;
               const stepLabel = BOOKING_STEP_LABELS[currentStep - 1] ?? "";
+              const build = getBuildStatus(booking);
               return (
                 <BookingCard
                   key={booking.id}
@@ -124,6 +173,8 @@ export default async function DashboardPage() {
                   employees={employees.map((e) => ({ id: e.id, name: e.name }))}
                   stepLabel={stepLabel}
                   stepNumber={currentStep}
+                  buildStatus={build.status}
+                  buildPreviewUrl={build.previewUrl}
                 />
               );
             })}
