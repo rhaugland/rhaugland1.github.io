@@ -20,6 +20,8 @@ interface BookingCardProps {
   currentStep?: number;
   clientFeedback?: string | null;
   revisionStatus?: string | null;
+  pluginCredentials?: Array<{ service: string; value: string }> | null;
+  pluginStatus?: string | null;
 }
 
 export function BookingCard({
@@ -39,6 +41,8 @@ export function BookingCard({
   currentStep,
   clientFeedback,
   revisionStatus,
+  pluginCredentials,
+  pluginStatus,
 }: BookingCardProps) {
   const router = useRouter();
   const [claiming, setClaiming] = useState(false);
@@ -50,6 +54,8 @@ export function BookingCard({
   const [editedFeedback, setEditedFeedback] = useState(clientFeedback ?? "");
   const [clientRevisionLoading, setClientRevisionLoading] = useState(false);
   const [clientBuildPending, setClientBuildPending] = useState(revisionStatus === "building");
+  const [pluginLoading, setPluginLoading] = useState(false);
+  const [pluginConnecting, setPluginConnecting] = useState(pluginStatus === "connecting");
 
   const meetingLabel = new Date(meetingTime).toLocaleDateString("en-US", {
     month: "short",
@@ -158,9 +164,43 @@ export function BookingCard({
     }
   }
 
+  async function handlePluginConnect() {
+    setPluginLoading(true);
+    try {
+      const res = await fetch(`/api/booking/${id}/plugin`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "connect" }),
+      });
+      if (res.ok) {
+        setPluginConnecting(true);
+      }
+    } finally {
+      setPluginLoading(false);
+    }
+  }
+
+  async function handlePluginComplete() {
+    setPluginLoading(true);
+    try {
+      const res = await fetch(`/api/booking/${id}/plugin`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "complete" }),
+      });
+      if (res.ok) {
+        router.refresh();
+      }
+    } finally {
+      setPluginLoading(false);
+    }
+  }
+
   const isSlushieReview = currentStep === 3;
   const isClientReview = currentStep === 4;
+  const isPluginStep = currentStep === 5;
   const hasClientFeedback = isClientReview && revisionStatus === "revision_received" && clientFeedback;
+  const hasCredentials = isPluginStep && pluginStatus === "credentials_received" && pluginCredentials && pluginCredentials.length > 0;
 
   return (
     <div className="rounded-lg bg-white border border-gray-200 p-3 shadow-sm">
@@ -382,6 +422,60 @@ export function BookingCard({
             <div className="h-2 w-2 rounded-full bg-blue-400 animate-pulse" />
             <span className="text-[10px] font-medium text-blue-700">waiting for client approval...</span>
           </div>
+        </div>
+      )}
+
+      {/* plug-in step 5: waiting for credentials */}
+      {isPluginStep && !hasCredentials && !pluginConnecting && (
+        <div className="mt-2">
+          <div className="flex items-center gap-1.5 rounded-md bg-blue-50 border border-blue-200 px-2 py-1.5">
+            <div className="h-2 w-2 rounded-full bg-blue-400 animate-pulse" />
+            <span className="text-[10px] font-medium text-blue-700">waiting for client credentials...</span>
+          </div>
+        </div>
+      )}
+
+      {/* plug-in step 5: credentials received — connect */}
+      {hasCredentials && !pluginConnecting && (
+        <div className="mt-2 space-y-1.5">
+          <div className="flex items-center gap-1.5 rounded-md bg-primary/10 border border-primary/20 px-2 py-1">
+            <div className="h-2 w-2 rounded-full bg-primary" />
+            <span className="text-[10px] font-bold text-primary">client credentials received</span>
+          </div>
+          <div className="rounded-md bg-gray-50 border border-gray-200 p-2 space-y-1">
+            {pluginCredentials!.map((cred, i) => (
+              <div key={i} className="flex items-center gap-1.5 text-[10px]">
+                <span className="font-medium text-foreground">{cred.service}:</span>
+                <span className="text-muted font-mono truncate">{cred.value}</span>
+              </div>
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={handlePluginConnect}
+            disabled={pluginLoading}
+            className="w-full rounded-md bg-gradient-to-r from-primary to-secondary px-2 py-1.5 text-[10px] font-bold text-white transition-all hover:shadow-md active:scale-[0.98] disabled:opacity-50"
+          >
+            {pluginLoading ? "connecting..." : "connect — push to developer bot"}
+          </button>
+        </div>
+      )}
+
+      {/* plug-in step 5: developer bot connecting */}
+      {isPluginStep && pluginConnecting && (
+        <div className="mt-2 space-y-1.5">
+          <div className="flex items-center gap-1.5 rounded-md bg-amber-50 border border-amber-200 px-2 py-1.5">
+            <div className="h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
+            <span className="text-[10px] font-medium text-amber-700">developer bot connecting workflow...</span>
+          </div>
+          <button
+            type="button"
+            onClick={handlePluginComplete}
+            disabled={pluginLoading}
+            className="w-full rounded-md bg-gradient-to-r from-primary to-secondary px-2 py-1.5 text-[10px] font-bold text-white transition-all hover:shadow-md active:scale-[0.98] disabled:opacity-50"
+          >
+            {pluginLoading ? "completing..." : "mark connected — advance to billing"}
+          </button>
         </div>
       )}
 

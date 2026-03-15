@@ -178,6 +178,8 @@ model Tracker {
   expiresAt       DateTime?
   clientFeedback  String?      @db.Text
   revisionStatus  String?
+  pluginCredentials Json?
+  pluginStatus    String?
   createdAt       DateTime     @default(now())
 
   pipelineRun     PipelineRun? @relation(fields: [pipelineRunId], references: [id])

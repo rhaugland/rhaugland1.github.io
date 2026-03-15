@@ -31,6 +31,7 @@ interface TrackerClientProps {
   meetingTime: string | null;
   buildPreviewUrl: string | null;
   revisionStatus: string | null;
+  pluginStatus: string | null;
 }
 
 export function TrackerClient({
@@ -43,6 +44,7 @@ export function TrackerClient({
   meetingTime,
   buildPreviewUrl,
   revisionStatus: initialRevisionStatus,
+  pluginStatus: initialPluginStatus,
 }: TrackerClientProps) {
   const [steps, setSteps] = useState<TrackerStep[]>(initialSteps);
   const [currentStep, setCurrentStep] = useState(initialCurrentStep);
@@ -60,6 +62,13 @@ export function TrackerClient({
   const [revisionText, setRevisionText] = useState("");
   const [revisionStatus, setRevisionStatus] = useState(initialRevisionStatus);
   const [revisionSent, setRevisionSent] = useState(initialRevisionStatus === "revision_received");
+  const [credentials, setCredentials] = useState<Array<{ service: string; value: string }>>([
+    { service: "", value: "" },
+  ]);
+  const [credentialsSent, setCredentialsSent] = useState(
+    initialPluginStatus === "credentials_received" || initialPluginStatus === "connecting" || initialPluginStatus === "connected"
+  );
+  const [pluginStatus, setPluginStatus] = useState(initialPluginStatus);
 
   useEffect(() => {
     const eventSource = new EventSource(`/api/track/${slug}/events`);
@@ -84,6 +93,9 @@ export function TrackerClient({
           // team pushed updated build back for client review
           setRevisionSent(false);
           setRevisionStatus(null);
+        }
+        if (data.type === "plugin.connecting") {
+          setPluginStatus("connecting");
         }
       } catch {
         // ignore malformed messages
@@ -219,6 +231,46 @@ export function TrackerClient({
     } finally {
       setActionLoading(false);
     }
+  }
+
+  async function handleSubmitCredentials() {
+    const validCreds = credentials.filter((c) => c.service.trim() && c.value.trim());
+    if (validCreds.length === 0) return;
+    setActionLoading(true);
+    setActionError(null);
+    try {
+      const res = await fetch(`/api/track/${slug}/credentials`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ credentials: validCreds }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        setActionError(data.error ?? "failed to send credentials");
+      } else {
+        setCredentialsSent(true);
+        setPluginStatus("credentials_received");
+      }
+    } catch {
+      setActionError("something went wrong. please try again.");
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  function addCredentialRow() {
+    setCredentials([...credentials, { service: "", value: "" }]);
+  }
+
+  function updateCredential(index: number, field: "service" | "value", val: string) {
+    setCredentials((prev) =>
+      prev.map((c, i) => (i === index ? { ...c, [field]: val } : c))
+    );
+  }
+
+  function removeCredential(index: number) {
+    if (credentials.length <= 1) return;
+    setCredentials((prev) => prev.filter((_, i) => i !== index));
   }
 
   const currentDaySlots = rescheduleSlots.find((s) => s.date === rescheduleDay);
@@ -472,6 +524,84 @@ export function TrackerClient({
                     view current build
                   </a>
                 )}
+              </div>
+            )}
+
+            {/* step 5: plug-in — credential submission */}
+            {activeStep.step === 5 && !credentialsSent && (
+              <div className="mt-4 space-y-3">
+                <p className="text-xs text-muted">
+                  we need your login credentials for the tools in your workflow so we can connect everything up.
+                  these are sent securely to our team.
+                </p>
+
+                <div className="space-y-2">
+                  {credentials.map((cred, i) => (
+                    <div key={i} className="flex gap-2">
+                      <input
+                        type="text"
+                        value={cred.service}
+                        onChange={(e) => updateCredential(i, "service", e.target.value)}
+                        placeholder="service (e.g. HubSpot)"
+                        className="flex-1 rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-foreground placeholder:text-muted/50 focus:border-primary focus:outline-none"
+                      />
+                      <input
+                        type="text"
+                        value={cred.value}
+                        onChange={(e) => updateCredential(i, "value", e.target.value)}
+                        placeholder="login / API key"
+                        className="flex-[2] rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-foreground placeholder:text-muted/50 focus:border-primary focus:outline-none"
+                      />
+                      {credentials.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => removeCredential(i)}
+                          className="shrink-0 rounded-lg border border-gray-300 px-2 text-muted hover:text-red-500 hover:border-red-300 transition-colors"
+                        >
+                          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={addCredentialRow}
+                  className="w-full rounded-lg border border-dashed border-gray-300 py-2 text-xs font-medium text-muted hover:border-primary hover:text-primary transition-colors"
+                >
+                  + add another service
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleSubmitCredentials}
+                  disabled={actionLoading || credentials.every((c) => !c.service.trim() || !c.value.trim())}
+                  className="w-full rounded-lg bg-gradient-to-r from-primary to-secondary px-4 py-3 text-sm font-bold text-white shadow-md transition-all active:scale-[0.98] hover:shadow-lg disabled:opacity-50"
+                >
+                  {actionLoading ? "sending..." : "send credentials"}
+                </button>
+              </div>
+            )}
+
+            {/* step 5: credentials sent — waiting for connection */}
+            {activeStep.step === 5 && credentialsSent && (
+              <div className="mt-4">
+                <div className="rounded-lg bg-gradient-to-r from-primary/5 to-secondary/5 border border-primary/15 px-4 py-3 text-center">
+                  <div className="flex items-center justify-center gap-2 mb-1">
+                    <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
+                    <p className="text-sm font-medium text-foreground">
+                      {pluginStatus === "connecting" ? "connecting your tools..." : "credentials received"}
+                    </p>
+                  </div>
+                  <p className="text-xs text-muted">
+                    {pluginStatus === "connecting"
+                      ? "our developer is wiring everything up. this page will update when it's live."
+                      : "our team has your credentials and will begin connecting shortly."}
+                  </p>
+                </div>
               </div>
             )}
           </div>

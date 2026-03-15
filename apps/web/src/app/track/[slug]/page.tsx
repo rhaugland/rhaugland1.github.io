@@ -93,6 +93,7 @@ export default async function TrackerPage({
       meetingTime={tracker.booking?.meetingTime?.toISOString() ?? null}
       buildPreviewUrl={buildPreviewUrl}
       revisionStatus={tracker.revisionStatus}
+      pluginStatus={tracker.pluginStatus}
     />
   );
 }

@@ -40,6 +40,8 @@ export default async function DashboardPage() {
           steps: true,
           clientFeedback: true,
           revisionStatus: true,
+          pluginCredentials: true,
+          pluginStatus: true,
           pipelineRun: {
             select: {
               id: true,
@@ -236,6 +238,8 @@ export default async function DashboardPage() {
                       currentStep={booking.tracker?.currentStep ?? 0}
                       clientFeedback={booking.tracker?.clientFeedback ?? null}
                       revisionStatus={booking.tracker?.revisionStatus ?? null}
+                      pluginCredentials={(booking.tracker?.pluginCredentials as Array<{ service: string; value: string }>) ?? null}
+                      pluginStatus={booking.tracker?.pluginStatus ?? null}
                     />
                   );
                 })}
