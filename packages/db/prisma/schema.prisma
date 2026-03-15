@@ -65,6 +65,7 @@ model Booking {
   clientId        String?
   assigneeId      String?
   needsReview     Boolean       @default(false)
+  freeAddonEarned Boolean       @default(false)
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
@@ -182,6 +183,9 @@ model Tracker {
   pluginStatus    String?
   paidAt          DateTime?
   stripeSessionId String?
+  npsScore        Int?
+  npsFeedback     String?      @db.Text
+  npsCompletedAt  DateTime?
   createdAt       DateTime     @default(now())
 
   pipelineRun     PipelineRun? @relation(fields: [pipelineRunId], references: [id])

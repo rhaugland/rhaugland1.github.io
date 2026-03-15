@@ -43,6 +43,7 @@ export default async function DashboardPage() {
           pluginCredentials: true,
           pluginStatus: true,
           paidAt: true,
+          npsScore: true,
           pipelineRun: {
             select: {
               id: true,
@@ -242,6 +243,8 @@ export default async function DashboardPage() {
                       pluginCredentials={(booking.tracker?.pluginCredentials as Array<{ service: string; value: string }>) ?? null}
                       pluginStatus={booking.tracker?.pluginStatus ?? null}
                       isPaid={!!booking.tracker?.paidAt}
+                      npsScore={booking.tracker?.npsScore ?? null}
+                      freeAddonEarned={booking.freeAddonEarned}
                     />
                   );
                 })}

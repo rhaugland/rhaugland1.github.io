@@ -23,6 +23,8 @@ interface BookingCardProps {
   pluginCredentials?: Array<{ service: string; value: string }> | null;
   pluginStatus?: string | null;
   isPaid?: boolean;
+  npsScore?: number | null;
+  freeAddonEarned?: boolean;
 }
 
 export function BookingCard({
@@ -45,6 +47,8 @@ export function BookingCard({
   pluginCredentials,
   pluginStatus,
   isPaid,
+  npsScore,
+  freeAddonEarned,
 }: BookingCardProps) {
   const router = useRouter();
   const [claiming, setClaiming] = useState(false);
@@ -493,6 +497,27 @@ export function BookingCard({
             <div className="flex items-center gap-1.5 rounded-md bg-amber-50 border border-amber-200 px-2 py-1.5">
               <div className="h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
               <span className="text-[10px] font-medium text-amber-700">waiting for client payment...</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* survey step 7 */}
+      {currentStep === 7 && (
+        <div className="mt-2">
+          {npsScore != null ? (
+            <div className="space-y-1">
+              <div className="flex items-center justify-between rounded-md bg-gradient-to-r from-primary/10 to-secondary/10 border border-primary/20 px-2 py-1.5">
+                <span className="text-[10px] font-bold text-primary">NPS: {npsScore}/10</span>
+                {freeAddonEarned && (
+                  <span className="text-[10px] font-medium text-secondary">free add-on earned</span>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1.5 rounded-md bg-blue-50 border border-blue-200 px-2 py-1.5">
+              <div className="h-2 w-2 rounded-full bg-blue-400 animate-pulse" />
+              <span className="text-[10px] font-medium text-blue-700">waiting for client survey...</span>
             </div>
           )}
         </div>

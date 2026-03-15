@@ -109,6 +109,7 @@ export default async function TrackerPage({
       isPaid={!!tracker.paidAt}
       planLabel={PLAN_LABELS[tracker.booking?.plan ?? ""] ?? "custom"}
       planPrice={PLAN_PRICES[tracker.booking?.plan ?? ""] ?? "$0"}
+      surveyCompleted={!!tracker.npsCompletedAt}
     />
   );
 }

@@ -36,6 +36,7 @@ interface TrackerClientProps {
   isPaid: boolean;
   planLabel: string;
   planPrice: string;
+  surveyCompleted: boolean;
 }
 
 export function TrackerClient({
@@ -52,6 +53,7 @@ export function TrackerClient({
   isPaid: initialIsPaid,
   planLabel,
   planPrice,
+  surveyCompleted: initialSurveyCompleted,
 }: TrackerClientProps) {
   const [steps, setSteps] = useState<TrackerStep[]>(initialSteps);
   const [currentStep, setCurrentStep] = useState(initialCurrentStep);
@@ -78,6 +80,10 @@ export function TrackerClient({
   const [pluginStatus, setPluginStatus] = useState(initialPluginStatus);
   const [paid, setPaid] = useState(initialIsPaid);
   const [paymentLoading, setPaymentLoading] = useState(false);
+  const [npsScore, setNpsScore] = useState<number | null>(null);
+  const [npsFeedback, setNpsFeedback] = useState("");
+  const [surveyCompleted, setSurveyCompleted] = useState(initialSurveyCompleted);
+  const [earnedAddon, setEarnedAddon] = useState(false);
 
   useEffect(() => {
     const eventSource = new EventSource(`/api/track/${slug}/events`);
@@ -309,6 +315,38 @@ export function TrackerClient({
       setActionError("something went wrong. please try again.");
     } finally {
       setPaymentLoading(false);
+    }
+  }
+
+  async function handleSubmitSurvey() {
+    if (npsScore === null) return;
+    setActionLoading(true);
+    setActionError(null);
+    try {
+      const res = await fetch(`/api/track/${slug}/survey`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ score: npsScore, feedback: npsFeedback }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        setActionError(data.error ?? "failed to submit survey");
+      } else {
+        setSurveyCompleted(true);
+        setEarnedAddon(true);
+        // mark all steps done locally
+        setSteps((prev) =>
+          prev.map((s) => ({
+            ...s,
+            status: "done",
+            completedAt: s.completedAt ?? new Date().toISOString(),
+          })) as TrackerStep[]
+        );
+      }
+    } catch {
+      setActionError("something went wrong. please try again.");
+    } finally {
+      setActionLoading(false);
     }
   }
 
@@ -685,6 +723,78 @@ export function TrackerClient({
                 </div>
               </div>
             )}
+
+            {/* step 7: NPS survey */}
+            {activeStep.step === 7 && !surveyCompleted && (
+              <div className="mt-4 space-y-4">
+                <div>
+                  <p className="text-xs text-muted mb-1">
+                    complete this quick survey and get a <span className="font-bold text-primary">free workflow add-on</span> as a thank you.
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-sm font-medium text-foreground mb-2">
+                    how likely are you to recommend slushie to a friend or colleague?
+                  </p>
+                  <div className="flex gap-1">
+                    {Array.from({ length: 11 }, (_, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => setNpsScore(i)}
+                        className={`flex-1 rounded-md py-2.5 text-xs font-bold transition-all ${
+                          npsScore === i
+                            ? "bg-gradient-to-r from-primary to-secondary text-white shadow-md scale-110"
+                            : "bg-gray-100 text-foreground hover:bg-gray-200"
+                        }`}
+                      >
+                        {i}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex justify-between mt-1">
+                    <span className="text-[10px] text-muted">not likely</span>
+                    <span className="text-[10px] text-muted">extremely likely</span>
+                  </div>
+                </div>
+
+                <div>
+                  <p className="text-sm font-medium text-foreground mb-2">
+                    anything you'd like to share? <span className="text-muted font-normal">(optional)</span>
+                  </p>
+                  <textarea
+                    value={npsFeedback}
+                    onChange={(e) => setNpsFeedback(e.target.value)}
+                    placeholder="tell us what you loved, or what we could do better..."
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-foreground placeholder:text-muted/50 focus:border-primary focus:outline-none resize-none"
+                    rows={3}
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleSubmitSurvey}
+                  disabled={actionLoading || npsScore === null}
+                  className="w-full rounded-lg bg-gradient-to-r from-primary to-secondary px-4 py-3 text-sm font-bold text-white shadow-md transition-all active:scale-[0.98] hover:shadow-lg disabled:opacity-50"
+                >
+                  {actionLoading ? "submitting..." : "submit & claim free add-on"}
+                </button>
+              </div>
+            )}
+
+            {/* step 7: survey completed */}
+            {activeStep.step === 7 && surveyCompleted && (
+              <div className="mt-4">
+                <div className="rounded-lg bg-gradient-to-r from-primary/5 to-secondary/5 border border-primary/15 px-4 py-4 text-center">
+                  <p className="text-sm font-bold text-foreground">thank you for your feedback!</p>
+                  <p className="text-xs text-muted mt-1">
+                    you've earned a <span className="font-bold text-primary">free workflow add-on</span>.
+                    we'll reach out to get started whenever you're ready.
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -693,6 +803,12 @@ export function TrackerClient({
           <div className="mt-4 rounded-xl bg-gradient-to-r from-primary/5 to-secondary/5 border border-primary/15 p-5 text-center">
             <p className="text-lg font-extrabold text-foreground">your blend is ready!</p>
             <p className="text-xs text-muted mt-1">every step is complete. time to take a sip.</p>
+            {earnedAddon && (
+              <div className="mt-3 rounded-lg bg-white border border-primary/20 px-3 py-2">
+                <p className="text-xs font-bold text-primary">🎉 free add-on unlocked</p>
+                <p className="text-[10px] text-muted mt-0.5">we'll be in touch to build your bonus workflow.</p>
+              </div>
+            )}
             {prototypeNanoid && (
               <a
                 href={`/preview/${prototypeNanoid}`}
