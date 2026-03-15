@@ -168,6 +168,10 @@ export function TrackerClient({
     ? steps[0]
     : (steps.find((s) => s.status === "active") ?? steps.find((s) => s.status === "pending") ?? null);
 
+  const isMeetingDay = meetingTime
+    ? new Date(meetingTime).toDateString() === new Date().toDateString()
+    : true;
+
   return (
     <main className="flex min-h-screen flex-col items-center slushie-gradient px-4 py-10 sm:justify-center sm:py-0">
       <div className="w-full max-w-2xl">
@@ -280,17 +284,26 @@ export function TrackerClient({
             <p className="text-sm font-bold text-foreground">{activeStep.label}</p>
             <p className="text-xs text-muted mt-0.5">{activeStep.subtitle}</p>
 
-            {/* step 2: show join call link */}
+            {/* step 2: show join call link — only clickable on meeting day */}
             {activeStep.step === 2 && (
-              <a
-                href={bookingId ? `/call/${bookingId}` : "#"}
-                className="mt-3 flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-primary to-secondary px-4 py-3 text-sm font-bold text-white shadow-md transition-all active:scale-[0.98] hover:shadow-lg"
-              >
-                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                </svg>
-                join your call
-              </a>
+              isMeetingDay ? (
+                <a
+                  href={bookingId ? `/call/${bookingId}` : "#"}
+                  className="mt-3 flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-primary to-secondary px-4 py-3 text-sm font-bold text-white shadow-md transition-all active:scale-[0.98] hover:shadow-lg"
+                >
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                  join your call
+                </a>
+              ) : (
+                <div className="mt-3 rounded-lg bg-gray-100 border border-gray-200 px-4 py-3 text-center">
+                  <p className="text-sm font-medium text-muted">call opens day of your meeting</p>
+                  {meetingLabel && (
+                    <p className="text-xs text-muted/70 mt-0.5">{meetingLabel}</p>
+                  )}
+                </div>
+              )
             )}
           </div>
         )}
