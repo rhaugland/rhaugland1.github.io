@@ -175,6 +175,7 @@ export default async function DashboardPage() {
                   stepNumber={currentStep}
                   buildStatus={build.status}
                   buildPreviewUrl={build.previewUrl}
+                  pipelineRunId={booking.tracker?.pipelineRun?.id ?? null}
                 />
               );
             })}

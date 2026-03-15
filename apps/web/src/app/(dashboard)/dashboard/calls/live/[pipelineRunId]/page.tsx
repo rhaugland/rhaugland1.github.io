@@ -159,14 +159,22 @@ export default function LiveCallPage() {
   const buildPreviewRef = useRef<BuildPreviewPanelHandle | null>(null);
   const [buildPanelX, setBuildPanelX] = useState(972);
   const [buildPanelY, setBuildPanelY] = useState(80);
+  const [initialPreviewUrl, setInitialPreviewUrl] = useState<string | null>(null);
 
-  // responsive build panel position
+  // responsive build panel position + load existing prototype
   useEffect(() => {
     if (window.innerWidth < 1500) {
       setBuildPanelX(528);
       setBuildPanelY(600);
     }
-  }, []);
+    // fetch existing prototype preview URL if pipeline already has a build
+    fetch(`/api/calls/build/status?pipelineRunId=${pipelineRunId}`)
+      .then((res) => res.ok ? res.json() : null)
+      .then((data) => {
+        if (data?.previewUrl) setInitialPreviewUrl(data.previewUrl);
+      })
+      .catch(() => {});
+  }, [pipelineRunId]);
 
   // auto scroll
   useEffect(() => {
@@ -242,6 +250,13 @@ export default function LiveCallPage() {
         clientIndustry: "unknown",
       }),
     }).catch((err) => console.error("failed to start coaching:", err));
+
+    // advance booking tracker to step 2 (meeting in progress)
+    fetch("/api/calls/start-tracker", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pipelineRunId }),
+    }).catch(() => {});
   }, [startCapture, pipelineRunId]);
 
   const handleEndCall = useCallback(async () => {
@@ -265,6 +280,13 @@ export default function LiveCallPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ pipelineRunId, transcript: finalTranscript }),
       });
+
+      // advance booking tracker to step 3 (build completion)
+      await fetch(`/api/calls/advance-tracker`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pipelineRunId }),
+      }).catch(() => {});
     } catch (err) {
       console.error("failed to end call:", err);
     }
@@ -431,6 +453,7 @@ export default function LiveCallPage() {
             ref={buildPreviewRef}
             pipelineRunId={pipelineRunId}
             isLive={isLive}
+            initialPreviewUrl={initialPreviewUrl}
           />
         </DraggablePanel>
       </div>

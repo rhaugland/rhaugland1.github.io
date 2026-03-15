@@ -21,6 +21,7 @@ interface ActivityEntry {
 interface BuildPreviewPanelProps {
   pipelineRunId: string;
   isLive: boolean;
+  initialPreviewUrl?: string | null;
 }
 
 export interface BuildPreviewPanelHandle {
@@ -32,10 +33,14 @@ export interface BuildPreviewPanelHandle {
 }
 
 export const BuildPreviewPanel = forwardRef<BuildPreviewPanelHandle, BuildPreviewPanelProps>(
-  function BuildPreviewPanel({ pipelineRunId, isLive }, ref) {
-    const [activityLog, setActivityLog] = useState<ActivityEntry[]>([]);
-    const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-    const previewUrlRef = useRef<string | null>(null); // ref to avoid stale closure
+  function BuildPreviewPanel({ pipelineRunId, isLive, initialPreviewUrl }, ref) {
+    const [activityLog, setActivityLog] = useState<ActivityEntry[]>(
+      initialPreviewUrl
+        ? [{ id: "initial", type: "system", text: "initial build loaded", timestamp: Date.now() }]
+        : []
+    );
+    const [previewUrl, setPreviewUrl] = useState<string | null>(initialPreviewUrl ?? null);
+    const previewUrlRef = useRef<string | null>(initialPreviewUrl ?? null); // ref to avoid stale closure
     const [isPaused, setIsPaused] = useState(false);
     const [messageText, setMessageText] = useState("");
     const [isSending, setIsSending] = useState(false);

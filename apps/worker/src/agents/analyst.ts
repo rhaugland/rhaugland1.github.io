@@ -82,43 +82,93 @@ async function handleCallEnded(event: CallEndedEvent): Promise<void> {
   const specContent = await readWorkspaceFile(specOutputPath);
   const spec = JSON.parse(specContent);
 
-  // save to database
-  const analysis = await prisma.analysis.create({
-    data: {
-      callId: event.data.callId,
-      workflowMap: spec.workflowMap,
-      gaps: spec.gaps,
-      monetaryImpact: { total: spec.totalMonthlyImpact },
-    },
+  // check if analysis already exists for this call (e.g. from booking intake)
+  const existingAnalysis = await prisma.analysis.findUnique({
+    where: { callId: event.data.callId },
+    include: { buildSpecs: { orderBy: { version: "desc" }, take: 1 } },
   });
 
-  const buildSpec = await prisma.buildSpec.create({
-    data: {
-      analysisId: analysis.id,
-      version: 1,
-      uiRequirements: spec.prototype.pages,
-      dataModels: spec.prototype.mockEndpoints,
-      integrations: spec.prototype.simulatedIntegrations,
-      walkthroughSteps: spec.prototype.walkthroughSteps,
-    },
-  });
+  let analysis;
+  let buildSpec;
 
-  // publish events
-  await publishEvent(
-    createEvent("analysis.complete", event.pipelineRunId, {
-      analysisId: analysis.id,
-      gapCount: spec.gaps.length,
-      totalMonetaryImpact: spec.totalMonthlyImpact,
-    })
-  );
+  if (existingAnalysis) {
+    // update existing analysis (booking intake → call update flow)
+    analysis = await prisma.analysis.update({
+      where: { id: existingAnalysis.id },
+      data: {
+        workflowMap: spec.workflowMap,
+        gaps: spec.gaps,
+        monetaryImpact: { total: spec.totalMonthlyImpact },
+      },
+    });
 
-  await publishEvent(
-    createEvent("build.spec.ready", event.pipelineRunId, {
-      buildSpecId: buildSpec.id,
-      version: 1,
-      pageCount: spec.prototype.pages.length,
-    })
-  );
+    const newVersion = (existingAnalysis.buildSpecs[0]?.version ?? 0) + 1;
+    buildSpec = await prisma.buildSpec.create({
+      data: {
+        analysisId: analysis.id,
+        version: newVersion,
+        uiRequirements: spec.prototype.pages,
+        dataModels: spec.prototype.mockEndpoints,
+        integrations: spec.prototype.simulatedIntegrations,
+        walkthroughSteps: spec.prototype.walkthroughSteps,
+      },
+    });
+
+    log.info({ analysisId: analysis.id, version: newVersion }, "analyst updated existing analysis from call");
+
+    await publishEvent(
+      createEvent("analysis.complete", event.pipelineRunId, {
+        analysisId: analysis.id,
+        gapCount: spec.gaps.length,
+        totalMonetaryImpact: spec.totalMonthlyImpact,
+      })
+    );
+
+    await publishEvent(
+      createEvent("build.spec.updated", event.pipelineRunId, {
+        buildSpecId: buildSpec.id,
+        version: newVersion,
+        changesFromGapReport: "updated from call transcript",
+      })
+    );
+  } else {
+    // first analysis for this call
+    analysis = await prisma.analysis.create({
+      data: {
+        callId: event.data.callId,
+        workflowMap: spec.workflowMap,
+        gaps: spec.gaps,
+        monetaryImpact: { total: spec.totalMonthlyImpact },
+      },
+    });
+
+    buildSpec = await prisma.buildSpec.create({
+      data: {
+        analysisId: analysis.id,
+        version: 1,
+        uiRequirements: spec.prototype.pages,
+        dataModels: spec.prototype.mockEndpoints,
+        integrations: spec.prototype.simulatedIntegrations,
+        walkthroughSteps: spec.prototype.walkthroughSteps,
+      },
+    });
+
+    await publishEvent(
+      createEvent("analysis.complete", event.pipelineRunId, {
+        analysisId: analysis.id,
+        gapCount: spec.gaps.length,
+        totalMonetaryImpact: spec.totalMonthlyImpact,
+      })
+    );
+
+    await publishEvent(
+      createEvent("build.spec.ready", event.pipelineRunId, {
+        buildSpecId: buildSpec.id,
+        version: 1,
+        pageCount: spec.prototype.pages.length,
+      })
+    );
+  }
 
   // update tracker
   await publishEvent(
