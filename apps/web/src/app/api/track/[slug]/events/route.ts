@@ -1,4 +1,4 @@
-import Redis from "ioredis";
+import { createRedisSubscriber } from "@/lib/redis";
 import { prisma } from "@slushie/db";
 
 export const dynamic = "force-dynamic";
@@ -23,7 +23,7 @@ export async function GET(
     return new Response("this link has expired", { status: 410 });
   }
 
-  const redis = new Redis(process.env.REDIS_URL ?? "redis://localhost:6379");
+  const redis = createRedisSubscriber();
   const channel = `tracker:${tracker.pipelineRunId ?? tracker.id}`;
 
   const stream = new ReadableStream({

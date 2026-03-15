@@ -1,7 +1,7 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@slushie/db";
 import { NextResponse } from "next/server";
-import Redis from "ioredis";
+import { getRedisPublisher } from "@/lib/redis";
 import path from "path";
 import fs from "fs/promises";
 
@@ -90,25 +90,21 @@ export async function POST(request: Request) {
     }
 
     // publish call.ended event
-    const redis = new Redis(process.env.REDIS_URL ?? "redis://localhost:6379");
-    try {
-      const event = {
-        type: "call.ended",
-        pipelineRunId: pipelineRun.id,
-        timestamp: Date.now(),
-        data: {
-          callId: call.id,
-          clientId: client.id,
-          duration: 1200,
-        },
-      };
-      await redis.publish(
-        `events:${pipelineRun.id}`,
-        JSON.stringify(event)
-      );
-    } finally {
-      redis.disconnect();
-    }
+    const redis = getRedisPublisher();
+    const event = {
+      type: "call.ended",
+      pipelineRunId: pipelineRun.id,
+      timestamp: Date.now(),
+      data: {
+        callId: call.id,
+        clientId: client.id,
+        duration: 1200,
+      },
+    };
+    await redis.publish(
+      `events:${pipelineRun.id}`,
+      JSON.stringify(event)
+    );
 
     return NextResponse.json({
       pipelineRunId: pipelineRun.id,

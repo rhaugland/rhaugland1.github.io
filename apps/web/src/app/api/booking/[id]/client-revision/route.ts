@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@slushie/db";
 import { auth } from "@/lib/auth";
 import { createEventQueue, createEvent } from "@slushie/events";
-import Redis from "ioredis";
+import { getRedisPublisher } from "@/lib/redis";
 
 const builderQueue = createEventQueue("builder");
 
@@ -72,18 +72,14 @@ export async function POST(
   });
 
   // publish SSE so the client tracker resets to review mode
-  const redis = new Redis(process.env.REDIS_URL ?? "redis://localhost:6379");
-  try {
-    await redis.publish(
-      `tracker:${tracker.pipelineRunId ?? tracker.id}`,
-      JSON.stringify({
-        type: "revision.ready",
-        timestamp: Date.now(),
-      })
-    );
-  } finally {
-    redis.disconnect();
-  }
+  const redis = getRedisPublisher();
+  await redis.publish(
+    `tracker:${tracker.pipelineRunId ?? tracker.id}`,
+    JSON.stringify({
+      type: "revision.ready",
+      timestamp: Date.now(),
+    })
+  );
 
   return NextResponse.json({ ok: true, action: "pushed_to_client" });
 }

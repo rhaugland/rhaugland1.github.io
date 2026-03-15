@@ -71,6 +71,7 @@ export async function sendBookingConfirmed({
   planLabel,
   meetingTime,
   slug,
+  tempPassword,
 }: {
   to: string;
   name: string;
@@ -78,6 +79,7 @@ export async function sendBookingConfirmed({
   planLabel: string;
   meetingTime: string;
   slug: string;
+  tempPassword: string;
 }) {
   const meetingLabel = new Date(meetingTime).toLocaleDateString("en-US", {
     weekday: "long",
@@ -98,6 +100,12 @@ export async function sendBookingConfirmed({
       <div style="background:#f3f0ff;border:1px solid #ddd6fe;border-radius:8px;padding:16px;margin-bottom:20px;">
         <p style="margin:0 0 4px;font-size:12px;color:#6b7280;">your meeting</p>
         <p style="margin:0;font-size:15px;font-weight:700;color:#111;">${meetingLabel}</p>
+      </div>
+      <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:16px;margin-bottom:20px;">
+        <p style="margin:0 0 8px;font-size:12px;color:#6b7280;">your tracker login</p>
+        <p style="margin:0 0 4px;font-size:13px;color:#111;"><strong>email:</strong> ${to}</p>
+        <p style="margin:0 0 8px;font-size:13px;color:#111;"><strong>temporary password:</strong> <code style="background:#f3f0ff;padding:2px 6px;border-radius:4px;font-size:14px;font-weight:700;color:#6d28d9;">${tempPassword}</code></p>
+        <p style="margin:0;font-size:11px;color:#9ca3af;">you'll be asked to set your own password on first login.</p>
       </div>
       <p style="margin:0 0 8px;font-size:14px;color:#6b7280;">
         track every step of your build in real time:

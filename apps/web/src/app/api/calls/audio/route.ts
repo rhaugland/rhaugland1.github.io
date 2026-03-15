@@ -1,7 +1,7 @@
 import { auth } from "@/lib/auth";
 import { DeepgramProxy } from "@/lib/deepgram-proxy";
 import type { TranscriptChunk } from "@/types/deepgram";
-import Redis from "ioredis";
+import { createRedisSubscriber } from "@/lib/redis";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +16,7 @@ export async function POST(request: Request) {
     return new Response("missing x-pipeline-run-id header", { status: 400 });
   }
 
-  const redis = new Redis(process.env.REDIS_URL ?? "redis://localhost:6379");
+  const redis = createRedisSubscriber();
   const channel = `events:${pipelineRunId}`;
 
   const audioData = Buffer.from(await request.arrayBuffer());

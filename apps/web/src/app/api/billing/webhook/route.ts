@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@slushie/db";
 import Stripe from "stripe";
-import Redis from "ioredis";
+import { getRedisPublisher } from "@/lib/redis";
 import { sendSurveyOpen } from "@/lib/email";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
@@ -68,22 +68,18 @@ export async function POST(request: Request) {
     });
 
     // publish SSE update so tracker page updates live
-    const redis = new Redis(process.env.REDIS_URL ?? "redis://localhost:6379");
-    try {
-      await redis.publish(
-        `tracker:${tracker.pipelineRunId ?? tracker.id}`,
-        JSON.stringify({
-          type: "tracker.update",
-          step: nextStep,
-          label: steps[nextStep - 1].label,
-          subtitle: steps[nextStep - 1].subtitle,
-          steps: updatedSteps,
-          timestamp: Date.now(),
-        })
-      );
-    } finally {
-      redis.disconnect();
-    }
+    const redis = getRedisPublisher();
+    await redis.publish(
+      `tracker:${tracker.pipelineRunId ?? tracker.id}`,
+      JSON.stringify({
+        type: "tracker.update",
+        step: nextStep,
+        label: steps[nextStep - 1].label,
+        subtitle: steps[nextStep - 1].subtitle,
+        steps: updatedSteps,
+        timestamp: Date.now(),
+      })
+    );
 
     // email client: survey is open (step 7)
     if (tracker.booking?.email) {

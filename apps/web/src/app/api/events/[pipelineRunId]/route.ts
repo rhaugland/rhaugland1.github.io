@@ -1,5 +1,5 @@
 import { auth } from "@/lib/auth";
-import Redis from "ioredis";
+import { createRedisSubscriber } from "@/lib/redis";
 
 export const dynamic = "force-dynamic";
 
@@ -13,7 +13,7 @@ export async function GET(
   }
 
   const { pipelineRunId } = await params;
-  const redis = new Redis(process.env.REDIS_URL ?? "redis://localhost:6379");
+  const redis = createRedisSubscriber();
   const channel = `events:${pipelineRunId}`;
 
   const stream = new ReadableStream({

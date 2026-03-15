@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@slushie/db";
-import Redis from "ioredis";
+import { getRedisPublisher } from "@/lib/redis";
 import pino from "pino";
 
 const logger = pino({ name: "api:revise" });
@@ -63,7 +63,7 @@ export async function POST(
 
   // phase 2 stub: publishes review.complete to trigger gap resolution cycle
   // in phase 2 this will support a manual revision notes field
-  const redis = new Redis(process.env.REDIS_URL ?? "redis://localhost:6379");
+  const redis = getRedisPublisher();
   const channel = `events:${id}`;
 
   const revisionEvent = JSON.stringify({
@@ -83,7 +83,6 @@ export async function POST(
   });
 
   await redis.publish(channel, revisionEvent);
-  await redis.disconnect();
 
   logger.info(
     { pipelineRunId: id, requestedBy: session.user.email },

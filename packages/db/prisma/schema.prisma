@@ -186,6 +186,8 @@ model Tracker {
   npsScore        Int?
   npsFeedback     String?      @db.Text
   npsCompletedAt  DateTime?
+  passwordHash    String?
+  mustChangePassword Boolean  @default(true)
   createdAt       DateTime     @default(now())
 
   pipelineRun     PipelineRun? @relation(fields: [pipelineRunId], references: [id])

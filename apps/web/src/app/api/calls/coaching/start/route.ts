@@ -1,6 +1,6 @@
 import { auth } from "@/lib/auth";
 import { NextResponse } from "next/server";
-import Redis from "ioredis";
+import { getRedisPublisher } from "@/lib/redis";
 
 export async function POST(request: Request) {
   const session = await auth();
@@ -19,7 +19,7 @@ export async function POST(request: Request) {
   }
 
   // publish a coaching.start control event that the worker listens for
-  const redis = new Redis(process.env.REDIS_URL ?? "redis://localhost:6379");
+  const redis = getRedisPublisher();
   const controlChannel = "control:coaching";
 
   await redis.publish(
@@ -31,8 +31,6 @@ export async function POST(request: Request) {
       clientIndustry: clientIndustry ?? "unknown",
     })
   );
-
-  redis.disconnect();
 
   return NextResponse.json({ ok: true, pipelineRunId });
 }

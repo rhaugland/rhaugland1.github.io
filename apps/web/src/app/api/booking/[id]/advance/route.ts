@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@slushie/db";
 import { auth } from "@/lib/auth";
-import Redis from "ioredis";
+import { getRedisPublisher } from "@/lib/redis";
 
 export async function PATCH(
   _request: Request,
@@ -79,22 +79,18 @@ export async function PATCH(
   }
 
   // publish SSE update via Redis
-  const redis = new Redis(process.env.REDIS_URL ?? "redis://localhost:6379");
-  try {
-    const channel = `tracker:${tracker.id}`;
-    const payload = JSON.stringify({
-      type: "tracker.update",
-      step: nextStep,
-      label: steps[nextStep - 1].label,
-      subtitle: steps[nextStep - 1].subtitle,
-      steps: updatedSteps,
-      timestamp: Date.now(),
-    });
+  const redis = getRedisPublisher();
+  const channel = `tracker:${tracker.id}`;
+  const payload = JSON.stringify({
+    type: "tracker.update",
+    step: nextStep,
+    label: steps[nextStep - 1].label,
+    subtitle: steps[nextStep - 1].subtitle,
+    steps: updatedSteps,
+    timestamp: Date.now(),
+  });
 
-    await redis.publish(channel, payload);
-  } finally {
-    redis.disconnect();
-  }
+  await redis.publish(channel, payload);
 
   return NextResponse.json({
     currentStep: updated.currentStep,

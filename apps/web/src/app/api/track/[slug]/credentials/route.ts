@@ -1,12 +1,19 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@slushie/db";
-import Redis from "ioredis";
+import { getRedisPublisher } from "@/lib/redis";
+import { verifyTrackerAccess } from "@/lib/tracker-auth";
 
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ slug: string }> }
 ) {
   const { slug } = await params;
+
+  const hasAccess = await verifyTrackerAccess(slug);
+  if (!hasAccess) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+
   const body = await request.json();
   const { credentials } = body;
 
@@ -51,18 +58,14 @@ export async function POST(
   });
 
   // notify team via SSE
-  const redis = new Redis(process.env.REDIS_URL ?? "redis://localhost:6379");
-  try {
-    await redis.publish(
-      `tracker:${tracker.pipelineRunId ?? tracker.id}`,
-      JSON.stringify({
-        type: "credentials.received",
-        timestamp: Date.now(),
-      })
-    );
-  } finally {
-    redis.disconnect();
-  }
+  const redis = getRedisPublisher();
+  await redis.publish(
+    `tracker:${tracker.pipelineRunId ?? tracker.id}`,
+    JSON.stringify({
+      type: "credentials.received",
+      timestamp: Date.now(),
+    })
+  );
 
   return NextResponse.json({ ok: true });
 }

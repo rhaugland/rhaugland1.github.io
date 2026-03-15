@@ -1,6 +1,6 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@slushie/db";
-import Redis from "ioredis";
+import { getRedisPublisher } from "@/lib/redis";
 import { NextResponse } from "next/server";
 
 export async function POST(request: Request) {
@@ -32,24 +32,20 @@ export async function POST(request: Request) {
     data: { buildPaused: false },
   });
 
-  const redis = new Redis(process.env.REDIS_URL ?? "redis://localhost:6379");
-  try {
-    const event = {
-      type: "build.resumed",
-      pipelineRunId,
-      timestamp: Date.now(),
-      data: { resumedBy: session.user?.email ?? "unknown" },
-    };
-    await redis.publish(`events:${pipelineRunId}`, JSON.stringify(event));
+  const redis = getRedisPublisher();
+  const event = {
+    type: "build.resumed",
+    pipelineRunId,
+    timestamp: Date.now(),
+    data: { resumedBy: session.user?.email ?? "unknown" },
+  };
+  await redis.publish(`events:${pipelineRunId}`, JSON.stringify(event));
 
-    // publish catch-up control signal so the incremental analyst scheduler re-checks
-    await redis.publish("control:incremental-analyst", JSON.stringify({
-      action: "catchup",
-      pipelineRunId,
-    }));
-  } finally {
-    redis.disconnect();
-  }
+  // publish catch-up control signal so the incremental analyst scheduler re-checks
+  await redis.publish("control:incremental-analyst", JSON.stringify({
+    action: "catchup",
+    pipelineRunId,
+  }));
 
   return NextResponse.json({ ok: true });
 }

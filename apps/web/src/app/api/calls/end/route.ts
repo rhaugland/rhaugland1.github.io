@@ -1,7 +1,7 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@slushie/db";
 import { NextResponse } from "next/server";
-import Redis from "ioredis";
+import { getRedisPublisher } from "@/lib/redis";
 
 export async function POST(request: Request) {
   const session = await auth();
@@ -46,7 +46,7 @@ export async function POST(request: Request) {
     : 0;
 
   // publish call.ended event to redis
-  const redis = new Redis(process.env.REDIS_URL ?? "redis://localhost:6379");
+  const redis = getRedisPublisher();
   const channel = `events:${pipelineRunId}`;
   const callEndedEvent = {
     type: "call.ended",
@@ -60,7 +60,6 @@ export async function POST(request: Request) {
   };
 
   await redis.publish(channel, JSON.stringify(callEndedEvent));
-  redis.disconnect();
 
   return NextResponse.json({
     callId: call.id,

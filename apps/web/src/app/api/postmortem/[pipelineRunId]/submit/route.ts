@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@slushie/db";
-import Redis from "ioredis";
+import { getRedisPublisher } from "@/lib/redis";
 import { Queue } from "bullmq";
 import pino from "pino";
 
@@ -102,7 +102,7 @@ export async function POST(
   });
 
   // notify dashboard via redis pub/sub
-  const redis = new Redis(redisUrl);
+  const redis = getRedisPublisher();
   const channel = `events:${pipelineRunId}`;
 
   const postmortemEvent = JSON.stringify({
@@ -116,7 +116,6 @@ export async function POST(
   });
 
   await redis.publish(channel, postmortemEvent);
-  await redis.disconnect();
   await postmortemQueue.close();
 
   logger.info(

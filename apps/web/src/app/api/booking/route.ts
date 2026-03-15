@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@slushie/db";
 import { nanoid } from "nanoid";
+import bcrypt from "bcryptjs";
 import { createCalendarEvent } from "@/lib/google-calendar";
 import { sendBookingConfirmed } from "@/lib/email";
+import { generateTempPassword } from "@/lib/tracker-auth";
 
 const BOOKING_STEPS = [
   { step: 1, label: "meeting confirmed", subtitle: "your blend is scheduled. we'll see you there." },
@@ -116,10 +118,13 @@ export async function POST(request: Request) {
       },
     });
 
-    // 5. create Tracker with 7 steps, step 1 done
+    // 5. create Tracker with 7 steps, step 1 done + temp password
     const slug = nanoid(21);
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 30);
+
+    const tempPassword = generateTempPassword();
+    const passwordHash = await bcrypt.hash(tempPassword, 10);
 
     const steps = BOOKING_STEPS.map((s, i) => ({
       ...s,
@@ -134,10 +139,12 @@ export async function POST(request: Request) {
         currentStep: 1,
         steps,
         expiresAt,
+        passwordHash,
+        mustChangePassword: true,
       },
     });
 
-    // send confirmation email with tracker link
+    // send confirmation email with tracker link + temp password
     sendBookingConfirmed({
       to: email,
       name,
@@ -145,6 +152,7 @@ export async function POST(request: Request) {
       planLabel: planLabels[plan] ?? plan,
       meetingTime,
       slug,
+      tempPassword,
     }).catch((err) => console.error("[email] booking confirmed failed:", err));
 
     return NextResponse.json({

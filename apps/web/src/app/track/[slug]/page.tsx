@@ -2,6 +2,8 @@ import { prisma } from "@slushie/db";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { TrackerClient } from "./tracker-client";
+import { TrackerLogin } from "./tracker-login";
+import { getTrackerSession } from "@/lib/tracker-auth";
 
 interface TrackerStep {
   step: number;
@@ -68,6 +70,19 @@ export default async function TrackerPage({
 
   if (!tracker) {
     notFound();
+  }
+
+  // auth check: if tracker has a password set, require login
+  if (tracker.passwordHash) {
+    const session = await getTrackerSession();
+    if (session?.slug !== slug) {
+      return (
+        <TrackerLogin
+          slug={slug}
+          businessName={tracker.booking?.businessName ?? "your project"}
+        />
+      );
+    }
   }
 
   // check if this email has a free add-on from a previous booking

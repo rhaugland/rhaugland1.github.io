@@ -1,13 +1,20 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@slushie/db";
-import Redis from "ioredis";
+import { getRedisPublisher } from "@/lib/redis";
 import { sendCredentialsNeeded } from "@/lib/email";
+import { verifyTrackerAccess } from "@/lib/tracker-auth";
 
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ slug: string }> }
 ) {
   const { slug } = await params;
+
+  const hasAccess = await verifyTrackerAccess(slug);
+  if (!hasAccess) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+
   const body = await request.json();
   const { action, feedback } = body;
 
@@ -62,22 +69,18 @@ export async function POST(
     });
 
     // publish SSE update
-    const redis = new Redis(process.env.REDIS_URL ?? "redis://localhost:6379");
-    try {
-      await redis.publish(
-        `tracker:${tracker.pipelineRunId ?? tracker.id}`,
-        JSON.stringify({
-          type: "tracker.update",
-          step: nextStep,
-          label: steps[nextStep - 1].label,
-          subtitle: steps[nextStep - 1].subtitle,
-          steps: updatedSteps,
-          timestamp: Date.now(),
-        })
-      );
-    } finally {
-      redis.disconnect();
-    }
+    const redis = getRedisPublisher();
+    await redis.publish(
+      `tracker:${tracker.pipelineRunId ?? tracker.id}`,
+      JSON.stringify({
+        type: "tracker.update",
+        step: nextStep,
+        label: steps[nextStep - 1].label,
+        subtitle: steps[nextStep - 1].subtitle,
+        steps: updatedSteps,
+        timestamp: Date.now(),
+      })
+    );
 
     // email client: credentials needed (step 5)
     if (tracker.booking?.email) {
@@ -109,19 +112,15 @@ export async function POST(
   });
 
   // publish SSE so the dashboard updates
-  const redis = new Redis(process.env.REDIS_URL ?? "redis://localhost:6379");
-  try {
-    await redis.publish(
-      `tracker:${tracker.pipelineRunId ?? tracker.id}`,
-      JSON.stringify({
-        type: "client.revision",
-        feedback: feedback.trim(),
-        timestamp: Date.now(),
-      })
-    );
-  } finally {
-    redis.disconnect();
-  }
+  const redis2 = getRedisPublisher();
+  await redis2.publish(
+    `tracker:${tracker.pipelineRunId ?? tracker.id}`,
+    JSON.stringify({
+      type: "client.revision",
+      feedback: feedback.trim(),
+      timestamp: Date.now(),
+    })
+  );
 
   return NextResponse.json({ ok: true, action: "revision_requested" });
 }

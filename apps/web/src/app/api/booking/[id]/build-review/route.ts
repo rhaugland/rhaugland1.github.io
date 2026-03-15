@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@slushie/db";
 import { auth } from "@/lib/auth";
 import { createEventQueue, createEvent } from "@slushie/events";
-import Redis from "ioredis";
+import { getRedisPublisher } from "@/lib/redis";
 import { sendBuildReadyForApproval } from "@/lib/email";
 
 const builderQueue = createEventQueue("builder");
@@ -65,22 +65,18 @@ export async function POST(
     });
 
     // publish SSE update
-    const redis = new Redis(process.env.REDIS_URL ?? "redis://localhost:6379");
-    try {
-      await redis.publish(
-        `tracker:${tracker.id}`,
-        JSON.stringify({
-          type: "tracker.update",
-          step: nextStep,
-          label: steps[nextStep - 1].label,
-          subtitle: steps[nextStep - 1].subtitle,
-          steps: updatedSteps,
-          timestamp: Date.now(),
-        })
-      );
-    } finally {
-      redis.disconnect();
-    }
+    const redis = getRedisPublisher();
+    await redis.publish(
+      `tracker:${tracker.id}`,
+      JSON.stringify({
+        type: "tracker.update",
+        step: nextStep,
+        label: steps[nextStep - 1].label,
+        subtitle: steps[nextStep - 1].subtitle,
+        steps: updatedSteps,
+        timestamp: Date.now(),
+      })
+    );
 
     // email client: build is ready for their review (step 4)
     if (nextStep === 4 && booking.email && tracker.slug) {

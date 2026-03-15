@@ -1,6 +1,6 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@slushie/db";
-import Redis from "ioredis";
+import { getRedisPublisher } from "@/lib/redis";
 import { NextResponse } from "next/server";
 
 export async function POST(request: Request) {
@@ -41,19 +41,15 @@ export async function POST(request: Request) {
     data: { teamDirectives: existing as unknown as import("@prisma/client").Prisma.InputJsonValue },
   });
 
-  // publish after db write succeeds — avoids redis leak on db error
-  const redis = new Redis(process.env.REDIS_URL ?? "redis://localhost:6379");
-  try {
-    const event = {
-      type: "build.message",
-      pipelineRunId,
-      timestamp: Date.now(),
-      data: { text: text.trim(), sentBy: directive.sentBy },
-    };
-    await redis.publish(`events:${pipelineRunId}`, JSON.stringify(event));
-  } finally {
-    redis.disconnect();
-  }
+  // publish after db write succeeds
+  const redis = getRedisPublisher();
+  const event = {
+    type: "build.message",
+    pipelineRunId,
+    timestamp: Date.now(),
+    data: { text: text.trim(), sentBy: directive.sentBy },
+  };
+  await redis.publish(`events:${pipelineRunId}`, JSON.stringify(event));
 
   return NextResponse.json({ ok: true });
 }

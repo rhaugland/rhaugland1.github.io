@@ -1,5 +1,5 @@
 import { auth } from "@/lib/auth";
-import Redis from "ioredis";
+import { createRedisSubscriber } from "@/lib/redis";
 
 export const dynamic = "force-dynamic";
 
@@ -9,7 +9,7 @@ export async function GET(request: Request) {
     return new Response("unauthorized", { status: 401 });
   }
 
-  const redis = new Redis(process.env.REDIS_URL ?? "redis://localhost:6379");
+  const redis = createRedisSubscriber();
   const channel = "dev:chat";
 
   const stream = new ReadableStream({

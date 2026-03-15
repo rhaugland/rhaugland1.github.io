@@ -1,6 +1,6 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@slushie/db";
-import Redis from "ioredis";
+import { getRedisPublisher } from "@/lib/redis";
 import { NextResponse } from "next/server";
 
 export async function POST(request: Request) {
@@ -32,18 +32,14 @@ export async function POST(request: Request) {
     data: { buildPaused: true },
   });
 
-  const redis = new Redis(process.env.REDIS_URL ?? "redis://localhost:6379");
-  try {
-    const event = {
-      type: "build.paused",
-      pipelineRunId,
-      timestamp: Date.now(),
-      data: { pausedBy: session.user?.email ?? "unknown" },
-    };
-    await redis.publish(`events:${pipelineRunId}`, JSON.stringify(event));
-  } finally {
-    redis.disconnect();
-  }
+  const redis = getRedisPublisher();
+  const event = {
+    type: "build.paused",
+    pipelineRunId,
+    timestamp: Date.now(),
+    data: { pausedBy: session.user?.email ?? "unknown" },
+  };
+  await redis.publish(`events:${pipelineRunId}`, JSON.stringify(event));
 
   return NextResponse.json({ ok: true });
 }
