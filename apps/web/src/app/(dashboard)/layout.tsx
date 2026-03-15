@@ -17,7 +17,7 @@ export default async function DashboardLayout({
         <div className="flex items-center justify-between">
           <span className="text-lg font-extrabold text-primary">slushie</span>
           <div className="flex items-center gap-6 text-sm text-muted">
-            <Link href="/dashboard/calls" className="hover:text-white">calls</Link>
+            <Link href="/dashboard" className="hover:text-white">meetings</Link>
             <Link href="/dashboard/builds" className="hover:text-white">builds</Link>
             <Link href="/dashboard/clients" className="hover:text-white">clients</Link>
             <Link href="/dashboard/bookings" className="hover:text-white">bookings</Link>

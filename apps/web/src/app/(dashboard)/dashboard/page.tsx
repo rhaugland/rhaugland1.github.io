@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { BookingCard } from "./booking-card";
 import { ReviewAlert } from "./review-alert";
+import { SeedButton } from "./seed-button";
 
 const BOOKING_STEP_LABELS = [
   "meeting confirmed",
@@ -145,10 +146,15 @@ export default async function DashboardPage() {
 
       {/* my meetings */}
       <div>
-        <h1 className="text-2xl font-extrabold text-foreground">my meetings</h1>
-        <p className="mt-1 text-sm text-muted">
-          bookings you've claimed, ordered by meeting date
-        </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-extrabold text-foreground">my meetings</h1>
+            <p className="mt-1 text-sm text-muted">
+              bookings you've claimed, ordered by meeting date
+            </p>
+          </div>
+          <SeedButton />
+        </div>
 
         {myBookings.length === 0 ? (
           <div className="mt-4 rounded-xl bg-gray-50 border border-gray-200 px-6 py-10 text-center">
