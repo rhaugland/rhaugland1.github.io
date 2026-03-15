@@ -229,7 +229,75 @@ export async function sendPaymentDue({
   });
 }
 
-// ── 5. survey open (step 6 → 7) ──
+// ── 5. payment failed / expired ──
+
+export async function sendPaymentFailed({
+  to,
+  name,
+  businessName,
+  planLabel,
+  slug,
+}: {
+  to: string;
+  name: string;
+  businessName: string;
+  planLabel: string;
+  slug: string;
+}) {
+  await send({
+    to,
+    subject: `${businessName} — payment didn't go through`,
+    html: layout(`
+      <h2 style="margin:0 0 8px;font-size:18px;color:#111;">hey ${name},</h2>
+      <p style="margin:0 0 16px;font-size:14px;color:#6b7280;">
+        it looks like your payment for the <strong>${planLabel}</strong> build for <strong>${businessName}</strong> didn't complete. no worries — your build is safe and waiting for you.
+      </p>
+      <p style="margin:0 0 16px;font-size:14px;color:#6b7280;">
+        you can try again anytime from your tracker.
+      </p>
+      <div style="text-align:center;margin:20px 0;">
+        ${button(trackerUrl(slug), "retry payment")}
+      </div>
+      <p style="margin:16px 0 0;font-size:12px;color:#9ca3af;">
+        if you're having trouble, just reply to this email and we'll help you out.
+      </p>
+    `),
+  });
+}
+
+// ── 6. free add-on ready to redeem ──
+
+export async function sendFreeAddonReady({
+  to,
+  name,
+  businessName,
+}: {
+  to: string;
+  name: string;
+  businessName: string;
+}) {
+  await send({
+    to,
+    subject: `your free workflow add-on is ready to claim`,
+    html: layout(`
+      <h2 style="margin:0 0 8px;font-size:18px;color:#111;">hey ${name},</h2>
+      <p style="margin:0 0 16px;font-size:14px;color:#6b7280;">
+        thanks for sharing your feedback on the <strong>${businessName}</strong> build! as promised, you've earned a <strong style="color:#6d28d9;">free single scoop workflow add-on</strong>.
+      </p>
+      <p style="margin:0 0 16px;font-size:14px;color:#6b7280;">
+        whenever you're ready, book your free build and we'll get started.
+      </p>
+      <div style="text-align:center;margin:20px 0;">
+        ${button(`${baseUrl()}/book?addon=true`, "book your free add-on")}
+      </div>
+      <p style="margin:16px 0 0;font-size:12px;color:#9ca3af;">
+        your add-on never expires. use it whenever you need a new workflow tool.
+      </p>
+    `),
+  });
+}
+
+// ── 7. survey open (step 6 → 7) ──
 
 export async function sendSurveyOpen({
   to,

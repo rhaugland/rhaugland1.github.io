@@ -102,6 +102,9 @@ export async function POST(request: Request) {
         quantity: 1,
       },
     ],
+    payment_intent_data: {
+      receipt_email: tracker.booking.email,
+    },
     metadata: {
       trackerId: tracker.id,
       bookingId: tracker.booking.id,
@@ -109,6 +112,7 @@ export async function POST(request: Request) {
     },
     success_url: `${origin}/track/${tracker.slug}?paid=true`,
     cancel_url: `${origin}/track/${tracker.slug}`,
+    expires_at: Math.floor(Date.now() / 1000) + 1800, // 30 minutes
   });
 
   // store session ID on tracker

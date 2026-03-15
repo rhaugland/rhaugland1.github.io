@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@slushie/db";
 import { getRedisPublisher } from "@/lib/redis";
 import { verifyTrackerAccess } from "@/lib/tracker-auth";
+import { sendFreeAddonReady } from "@/lib/email";
 
 export async function POST(
   request: Request,
@@ -26,7 +27,7 @@ export async function POST(
 
   const tracker = await prisma.tracker.findUnique({
     where: { slug },
-    include: { booking: { select: { id: true, email: true } } },
+    include: { booking: { select: { id: true, name: true, email: true, businessName: true } } },
   });
 
   if (!tracker) {
@@ -71,6 +72,13 @@ export async function POST(
       where: { id: tracker.booking.id },
       data: { freeAddonEarned: true, status: "COMPLETED" },
     });
+
+    // email: your free add-on is ready to redeem
+    sendFreeAddonReady({
+      to: tracker.booking.email,
+      name: tracker.booking.name,
+      businessName: tracker.booking.businessName,
+    }).catch((err) => console.error("[email] free addon ready failed:", err));
   }
 
   // publish SSE to update tracker live

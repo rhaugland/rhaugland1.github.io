@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@slushie/db";
 import Stripe from "stripe";
 import { getRedisPublisher } from "@/lib/redis";
-import { sendSurveyOpen } from "@/lib/email";
+import { sendSurveyOpen, sendPaymentFailed } from "@/lib/email";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
@@ -89,6 +89,42 @@ export async function POST(request: Request) {
         businessName: tracker.booking.businessName,
         slug: tracker.slug,
       }).catch((err) => console.error("[email] survey open failed:", err));
+    }
+  }
+
+  // handle expired/abandoned checkout sessions
+  if (event.type === "checkout.session.expired") {
+    const session = event.data.object as Stripe.Checkout.Session;
+    const trackerId = session.metadata?.trackerId;
+    const sessionSlug = session.metadata?.slug;
+
+    if (trackerId && sessionSlug) {
+      const tracker = await prisma.tracker.findUnique({
+        where: { id: trackerId },
+        include: { booking: { select: { name: true, email: true, businessName: true, plan: true } } },
+      });
+
+      if (tracker && !tracker.paidAt && tracker.booking?.email) {
+        // clear the expired session ID so they can try again
+        await prisma.tracker.update({
+          where: { id: tracker.id },
+          data: { stripeSessionId: null },
+        });
+
+        const planLabels: Record<string, string> = {
+          SINGLE_SCOOP: "single scoop",
+          DOUBLE_BLEND: "double blend",
+          TRIPLE_FREEZE: "triple freeze",
+        };
+
+        sendPaymentFailed({
+          to: tracker.booking.email,
+          name: tracker.booking.name,
+          businessName: tracker.booking.businessName,
+          planLabel: planLabels[tracker.booking.plan] ?? tracker.booking.plan,
+          slug: sessionSlug,
+        }).catch((err) => console.error("[email] payment failed notification failed:", err));
+      }
     }
   }
 

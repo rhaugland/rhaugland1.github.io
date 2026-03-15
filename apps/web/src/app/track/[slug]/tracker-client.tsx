@@ -826,8 +826,13 @@ export function TrackerClient({
                   <p className="text-sm font-bold text-foreground">thank you for your feedback!</p>
                   <p className="text-xs text-muted mt-1">
                     you've earned a <span className="font-bold text-primary">free workflow add-on</span>.
-                    we'll reach out to get started whenever you're ready.
                   </p>
+                  <a
+                    href="/book?addon=true"
+                    className="mt-3 inline-block rounded-lg bg-gradient-to-r from-primary to-secondary px-6 py-2.5 text-xs font-bold text-white shadow-md transition-all active:scale-[0.98] hover:shadow-lg"
+                  >
+                    book your free add-on
+                  </a>
                 </div>
               </div>
             )}
@@ -840,9 +845,17 @@ export function TrackerClient({
             <p className="text-lg font-extrabold text-foreground">your blend is ready!</p>
             <p className="text-xs text-muted mt-1">every step is complete. time to take a sip.</p>
             {earnedAddon && (
-              <div className="mt-3 rounded-lg bg-white border border-primary/20 px-3 py-2">
-                <p className="text-xs font-bold text-primary">🎉 free add-on unlocked</p>
-                <p className="text-[10px] text-muted mt-0.5">we'll be in touch to build your bonus workflow.</p>
+              <div className="mt-3 rounded-lg bg-white border border-primary/20 px-3 py-3">
+                <p className="text-xs font-bold text-primary">free add-on unlocked!</p>
+                <p className="text-[10px] text-muted mt-0.5 mb-2">
+                  you earned a free single scoop workflow tool. book it whenever you're ready.
+                </p>
+                <a
+                  href="/book?addon=true"
+                  className="block w-full text-center rounded-lg bg-gradient-to-r from-primary to-secondary px-3 py-2.5 text-xs font-bold text-white shadow-md transition-all active:scale-[0.98] hover:shadow-lg"
+                >
+                  book your free add-on
+                </a>
               </div>
             )}
             {prototypeNanoid && (
