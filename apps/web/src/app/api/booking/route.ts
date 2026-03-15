@@ -7,7 +7,7 @@ const BOOKING_STEPS = [
   { step: 1, label: "meeting confirmed", subtitle: "your blend is scheduled. we'll see you there." },
   { step: 2, label: "meeting", subtitle: "we're on the call. workflow discovery in progress." },
   { step: 3, label: "build completion", subtitle: "your tool is built. time for a taste test." },
-  { step: 4, label: "internal build review", subtitle: "our team is reviewing the build for quality." },
+  { step: 4, label: "slushie build review", subtitle: "our team is reviewing the build for quality." },
   { step: 5, label: "client build approval", subtitle: "your turn. take a look and let us know." },
   { step: 6, label: "plug-in", subtitle: "connecting to your tools. almost there." },
   { step: 7, label: "billing", subtitle: "invoice sent. simple and transparent." },
