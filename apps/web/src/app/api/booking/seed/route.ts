@@ -44,12 +44,10 @@ export async function POST() {
     },
   });
 
-  // schedule meeting for today at the next whole hour
-  const now = new Date();
-  const meetingTime = new Date(now);
-  meetingTime.setHours(now.getHours() + 1, 0, 0, 0);
+  // schedule meeting for right now (today) so start call button appears
+  const meetingTime = new Date();
 
-  // create the booking
+  // create the booking — assigned to the current user
   const booking = await prisma.booking.create({
     data: {
       name: "Jane Smith",
@@ -68,22 +66,43 @@ export async function POST() {
     },
   });
 
-  // create tracker
+  // create a call record (transcript = booking description, like the claim flow)
+  const call = await prisma.call.create({
+    data: {
+      clientId: client.id,
+      startedAt: new Date(),
+      endedAt: new Date(),
+      transcript: booking.description,
+      coachingLog: [],
+    },
+  });
+
+  // create pipeline run
+  const pipelineRun = await prisma.pipelineRun.create({
+    data: {
+      clientId: client.id,
+      callId: call.id,
+      status: "RUNNING",
+    },
+  });
+
+  // create tracker at step 2 (meeting) with pipeline run linked
   const slug = nanoid(21);
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + 30);
 
   const steps = BOOKING_STEPS.map((s, i) => ({
     ...s,
-    status: i === 0 ? "done" : "pending",
+    status: i === 0 ? "done" : i === 1 ? "active" : "pending",
     completedAt: i === 0 ? new Date().toISOString() : null,
   }));
 
   await prisma.tracker.create({
     data: {
       bookingId: booking.id,
+      pipelineRunId: pipelineRun.id,
       slug,
-      currentStep: 1,
+      currentStep: 2,
       steps,
       expiresAt,
     },
@@ -93,6 +112,7 @@ export async function POST() {
     ok: true,
     bookingId: booking.id,
     trackingSlug: slug,
+    pipelineRunId: pipelineRun.id,
     meetingTime: meetingTime.toISOString(),
   });
 }
