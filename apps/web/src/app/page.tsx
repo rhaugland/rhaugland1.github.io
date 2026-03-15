@@ -18,7 +18,7 @@ export default function Home() {
               book a blend
             </a>
             <Link
-              href="/api/auth/signin"
+              href="/api/auth/signin?callbackUrl=/dashboard"
               className="text-xs text-white/40 hover:text-white/70 transition-colors"
             >
               team

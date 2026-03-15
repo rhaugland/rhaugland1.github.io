@@ -28,10 +28,11 @@ model Client {
 }
 
 model Employee {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   name      String
   email     String?
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
+  bookings  Booking[]
 }
 
 enum ClientStage {
@@ -62,10 +63,12 @@ model Booking {
   status          BookingStatus @default(CONFIRMED)
   calendarEventId String?
   clientId        String?
+  assigneeId      String?
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
   client        Client?       @relation(fields: [clientId], references: [id])
+  assignee      Employee?     @relation(fields: [assigneeId], references: [id])
   tracker       Tracker?
 }
 
