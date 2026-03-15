@@ -38,6 +38,8 @@ export default async function DashboardPage() {
           slug: true,
           currentStep: true,
           steps: true,
+          clientFeedback: true,
+          revisionStatus: true,
           pipelineRun: {
             select: {
               id: true,
@@ -232,6 +234,8 @@ export default async function DashboardPage() {
                       buildPreviewUrl={build.previewUrl}
                       pipelineRunId={booking.tracker?.pipelineRun?.id ?? null}
                       currentStep={booking.tracker?.currentStep ?? 0}
+                      clientFeedback={booking.tracker?.clientFeedback ?? null}
+                      revisionStatus={booking.tracker?.revisionStatus ?? null}
                     />
                   );
                 })}

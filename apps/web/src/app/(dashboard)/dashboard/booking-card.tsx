@@ -18,6 +18,8 @@ interface BookingCardProps {
   buildPreviewUrl?: string;
   pipelineRunId?: string | null;
   currentStep?: number;
+  clientFeedback?: string | null;
+  revisionStatus?: string | null;
 }
 
 export function BookingCard({
@@ -35,6 +37,8 @@ export function BookingCard({
   buildPreviewUrl,
   pipelineRunId,
   currentStep,
+  clientFeedback,
+  revisionStatus,
 }: BookingCardProps) {
   const router = useRouter();
   const [claiming, setClaiming] = useState(false);
@@ -43,6 +47,9 @@ export function BookingCard({
   const [feedback, setFeedback] = useState("");
   const [reviewLoading, setReviewLoading] = useState(false);
   const [changesPending, setChangesPending] = useState(false);
+  const [editedFeedback, setEditedFeedback] = useState(clientFeedback ?? "");
+  const [clientRevisionLoading, setClientRevisionLoading] = useState(false);
+  const [clientBuildPending, setClientBuildPending] = useState(revisionStatus === "building");
 
   const meetingLabel = new Date(meetingTime).toLocaleDateString("en-US", {
     month: "short",
@@ -117,7 +124,43 @@ export function BookingCard({
     }
   }
 
+  async function handlePushToBot() {
+    if (!editedFeedback.trim()) return;
+    setClientRevisionLoading(true);
+    try {
+      const res = await fetch(`/api/booking/${id}/client-revision`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "push_to_bot", feedback: editedFeedback.trim() }),
+      });
+      if (res.ok) {
+        setClientBuildPending(true);
+      }
+    } finally {
+      setClientRevisionLoading(false);
+    }
+  }
+
+  async function handleRepushToClient() {
+    setClientRevisionLoading(true);
+    try {
+      const res = await fetch(`/api/booking/${id}/client-revision`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "push_to_client" }),
+      });
+      if (res.ok) {
+        setClientBuildPending(false);
+        router.refresh();
+      }
+    } finally {
+      setClientRevisionLoading(false);
+    }
+  }
+
   const isSlushieReview = currentStep === 3;
+  const isClientReview = currentStep === 4;
+  const hasClientFeedback = isClientReview && revisionStatus === "revision_received" && clientFeedback;
 
   return (
     <div className="rounded-lg bg-white border border-gray-200 p-3 shadow-sm">
@@ -272,6 +315,72 @@ export function BookingCard({
             >
               review again
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* client revision received — step 4 */}
+      {hasClientFeedback && !clientBuildPending && (
+        <div className="mt-2 space-y-1.5">
+          <div className="flex items-center gap-1.5 rounded-md bg-primary/10 border border-primary/20 px-2 py-1">
+            <div className="h-2 w-2 rounded-full bg-primary" />
+            <span className="text-[10px] font-bold text-primary">client revision request</span>
+          </div>
+          <textarea
+            value={editedFeedback}
+            onChange={(e) => setEditedFeedback(e.target.value)}
+            className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-xs text-foreground focus:border-primary focus:outline-none resize-none"
+            rows={3}
+          />
+          <div className="flex gap-1.5">
+            <button
+              type="button"
+              onClick={handlePushToBot}
+              disabled={clientRevisionLoading || !editedFeedback.trim()}
+              className="flex-1 rounded-md bg-gradient-to-r from-primary to-secondary px-2 py-1.5 text-[10px] font-bold text-white transition-all hover:shadow-md active:scale-[0.98] disabled:opacity-50"
+            >
+              {clientRevisionLoading ? "pushing..." : "push to developer bot"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* client build changes in progress — step 4 */}
+      {isClientReview && clientBuildPending && (
+        <div className="mt-2 space-y-1.5">
+          <div className="flex items-center gap-1.5 rounded-md bg-amber-50 border border-amber-200 px-2 py-1.5">
+            <div className="h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
+            <span className="text-[10px] font-medium text-amber-700">developer bot building changes...</span>
+          </div>
+          <div className="flex gap-1.5">
+            {buildPreviewUrl && (
+              <a
+                href={buildPreviewUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex-1 text-center rounded-md border border-gray-300 px-2 py-1.5 text-[10px] font-medium text-foreground hover:border-primary hover:text-primary transition-colors"
+              >
+                view build
+              </a>
+            )}
+            <button
+              type="button"
+              onClick={handleRepushToClient}
+              disabled={clientRevisionLoading}
+              className="flex-1 rounded-md bg-gradient-to-r from-primary to-secondary px-2 py-1.5 text-[10px] font-bold text-white transition-all hover:shadow-md active:scale-[0.98] disabled:opacity-50"
+            >
+              {clientRevisionLoading ? "pushing..." : "push to client"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* client review waiting — step 4 with no revision yet */}
+      {isClientReview && !hasClientFeedback && !clientBuildPending && (
+        <div className="mt-2">
+          <div className="flex items-center gap-1.5 rounded-md bg-blue-50 border border-blue-200 px-2 py-1.5">
+            <div className="h-2 w-2 rounded-full bg-blue-400 animate-pulse" />
+            <span className="text-[10px] font-medium text-blue-700">waiting for client approval...</span>
           </div>
         </div>
       )}

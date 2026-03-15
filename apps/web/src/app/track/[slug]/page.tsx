@@ -29,6 +29,25 @@ export default async function TrackerPage({
       pipelineRun: {
         include: {
           client: { select: { name: true } },
+          call: {
+            select: {
+              analysis: {
+                select: {
+                  buildSpecs: {
+                    orderBy: { version: "desc" as const },
+                    take: 1,
+                    select: {
+                      prototypes: {
+                        orderBy: { version: "desc" as const },
+                        take: 1,
+                        select: { previewUrl: true },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
         },
       },
       booking: { select: { id: true, businessName: true, meetingTime: true } },
@@ -60,6 +79,9 @@ export default async function TrackerPage({
     tracker.booking?.businessName ??
     "your project";
 
+  const buildPreviewUrl =
+    tracker.pipelineRun?.call?.analysis?.buildSpecs?.[0]?.prototypes?.[0]?.previewUrl ?? null;
+
   return (
     <TrackerClient
       slug={slug}
@@ -69,6 +91,8 @@ export default async function TrackerPage({
       prototypeNanoid={tracker.prototypeNanoid}
       bookingId={tracker.booking?.id ?? null}
       meetingTime={tracker.booking?.meetingTime?.toISOString() ?? null}
+      buildPreviewUrl={buildPreviewUrl}
+      revisionStatus={tracker.revisionStatus}
     />
   );
 }

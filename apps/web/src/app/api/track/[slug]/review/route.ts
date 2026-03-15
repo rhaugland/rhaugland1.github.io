@@ -1,0 +1,116 @@
+import { NextResponse } from "next/server";
+import { prisma } from "@slushie/db";
+import Redis from "ioredis";
+
+export async function POST(
+  request: Request,
+  { params }: { params: Promise<{ slug: string }> }
+) {
+  const { slug } = await params;
+  const body = await request.json();
+  const { action, feedback } = body;
+
+  if (action !== "approve" && action !== "request_revision") {
+    return NextResponse.json(
+      { error: "action must be 'approve' or 'request_revision'" },
+      { status: 400 }
+    );
+  }
+
+  const tracker = await prisma.tracker.findUnique({
+    where: { slug },
+    include: { booking: { select: { id: true } } },
+  });
+
+  if (!tracker) {
+    return NextResponse.json({ error: "not found" }, { status: 404 });
+  }
+
+  if (tracker.currentStep !== 4) {
+    return NextResponse.json(
+      { error: "build is not currently awaiting your approval" },
+      { status: 400 }
+    );
+  }
+
+  if (action === "approve") {
+    // advance to step 5 (plug-in)
+    const steps = tracker.steps as Array<{
+      step: number; label: string; subtitle: string; status: string; completedAt: string | null;
+    }>;
+
+    const nextStep = 5;
+    const updatedSteps = steps.map((s, i) => {
+      if (i < nextStep - 1) {
+        return { ...s, status: "done", completedAt: s.completedAt ?? new Date().toISOString() };
+      }
+      if (i === nextStep - 1) {
+        return { ...s, status: "active" };
+      }
+      return { ...s, status: "pending" };
+    });
+
+    await prisma.tracker.update({
+      where: { id: tracker.id },
+      data: {
+        currentStep: nextStep,
+        steps: updatedSteps,
+        clientFeedback: null,
+        revisionStatus: null,
+      },
+    });
+
+    // publish SSE update
+    const redis = new Redis(process.env.REDIS_URL ?? "redis://localhost:6379");
+    try {
+      await redis.publish(
+        `tracker:${tracker.pipelineRunId ?? tracker.id}`,
+        JSON.stringify({
+          type: "tracker.update",
+          step: nextStep,
+          label: steps[nextStep - 1].label,
+          subtitle: steps[nextStep - 1].subtitle,
+          steps: updatedSteps,
+          timestamp: Date.now(),
+        })
+      );
+    } finally {
+      redis.disconnect();
+    }
+
+    return NextResponse.json({ ok: true, action: "approved", currentStep: nextStep });
+  }
+
+  // action === "request_revision"
+  if (!feedback || typeof feedback !== "string" || feedback.trim().length === 0) {
+    return NextResponse.json(
+      { error: "please describe the changes you'd like" },
+      { status: 400 }
+    );
+  }
+
+  await prisma.tracker.update({
+    where: { id: tracker.id },
+    data: {
+      clientFeedback: feedback.trim(),
+      revisionStatus: "revision_received",
+    },
+  });
+
+  // publish SSE so the dashboard updates
+  const redis = new Redis(process.env.REDIS_URL ?? "redis://localhost:6379");
+  try {
+    await redis.publish(
+      `tracker:${tracker.pipelineRunId ?? tracker.id}`,
+      JSON.stringify({
+        type: "client.revision",
+        feedback: feedback.trim(),
+        timestamp: Date.now(),
+      })
+    );
+  } finally {
+    redis.disconnect();
+  }
+
+  return NextResponse.json({ ok: true, action: "revision_requested" });
+}

@@ -29,6 +29,8 @@ interface TrackerClientProps {
   prototypeNanoid: string | null;
   bookingId: string | null;
   meetingTime: string | null;
+  buildPreviewUrl: string | null;
+  revisionStatus: string | null;
 }
 
 export function TrackerClient({
@@ -39,6 +41,8 @@ export function TrackerClient({
   prototypeNanoid,
   bookingId,
   meetingTime,
+  buildPreviewUrl,
+  revisionStatus: initialRevisionStatus,
 }: TrackerClientProps) {
   const [steps, setSteps] = useState<TrackerStep[]>(initialSteps);
   const [currentStep, setCurrentStep] = useState(initialCurrentStep);
@@ -52,6 +56,10 @@ export function TrackerClient({
   const [actionLoading, setActionLoading] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [rescheduled, setRescheduled] = useState(false);
+  const [showRevisionForm, setShowRevisionForm] = useState(false);
+  const [revisionText, setRevisionText] = useState("");
+  const [revisionStatus, setRevisionStatus] = useState(initialRevisionStatus);
+  const [revisionSent, setRevisionSent] = useState(initialRevisionStatus === "revision_received");
 
   useEffect(() => {
     const eventSource = new EventSource(`/api/track/${slug}/events`);
@@ -66,6 +74,16 @@ export function TrackerClient({
         if (data.type === "tracker.update" && data.steps) {
           setSteps(data.steps);
           setCurrentStep(data.step);
+          // if we moved past step 4, clear revision state
+          if (data.step > 4) {
+            setRevisionSent(false);
+            setRevisionStatus(null);
+          }
+        }
+        if (data.type === "revision.ready") {
+          // team pushed updated build back for client review
+          setRevisionSent(false);
+          setRevisionStatus(null);
         }
       } catch {
         // ignore malformed messages
@@ -136,6 +154,65 @@ export function TrackerClient({
       } else {
         setRescheduled(true);
         setShowReschedule(false);
+      }
+    } catch {
+      setActionError("something went wrong. please try again.");
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  async function handleClientApprove() {
+    setActionLoading(true);
+    setActionError(null);
+    try {
+      const res = await fetch(`/api/track/${slug}/review`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "approve" }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        setActionError(data.error ?? "failed to approve");
+      } else {
+        const data = await res.json();
+        setCurrentStep(data.currentStep);
+        // update steps locally
+        setSteps((prev) =>
+          prev.map((s, i) => ({
+            ...s,
+            status: i < data.currentStep - 1 ? "done" : i === data.currentStep - 1 ? "active" : "pending",
+            completedAt: i < data.currentStep - 1 ? s.completedAt ?? new Date().toISOString() : s.completedAt,
+          })) as TrackerStep[]
+        );
+        setRevisionStatus(null);
+        setRevisionSent(false);
+      }
+    } catch {
+      setActionError("something went wrong. please try again.");
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  async function handleClientRevision() {
+    if (!revisionText.trim()) return;
+    setActionLoading(true);
+    setActionError(null);
+    try {
+      const res = await fetch(`/api/track/${slug}/review`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "request_revision", feedback: revisionText.trim() }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        setActionError(data.error ?? "failed to send revision");
+      } else {
+        setShowRevisionForm(false);
+        setRevisionText("");
+        setRevisionSent(true);
+        setRevisionStatus("revision_received");
       }
     } catch {
       setActionError("something went wrong. please try again.");
@@ -304,6 +381,98 @@ export function TrackerClient({
                   )}
                 </div>
               )
+            )}
+
+            {/* step 4: client build approval */}
+            {activeStep.step === 4 && !revisionSent && !showRevisionForm && (
+              <div className="mt-4 space-y-3">
+                {buildPreviewUrl && (
+                  <a
+                    href={buildPreviewUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-primary/5 to-secondary/5 border border-primary/15 px-4 py-3 text-sm font-medium text-primary hover:border-primary/30 transition-colors"
+                  >
+                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
+                    view your build
+                  </a>
+                )}
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={handleClientApprove}
+                    disabled={actionLoading}
+                    className="flex-1 rounded-lg bg-gradient-to-r from-primary to-secondary px-4 py-3 text-sm font-bold text-white shadow-md transition-all active:scale-[0.98] hover:shadow-lg disabled:opacity-50"
+                  >
+                    {actionLoading ? "approving..." : "approve build"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowRevisionForm(true)}
+                    disabled={actionLoading}
+                    className="flex-1 rounded-lg border-2 border-primary bg-white px-4 py-3 text-sm font-medium text-primary active:bg-primary/5 hover:bg-primary/5 transition-colors disabled:opacity-50"
+                  >
+                    request revision
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* step 4: revision form */}
+            {activeStep.step === 4 && showRevisionForm && !revisionSent && (
+              <div className="mt-4 space-y-3">
+                <p className="text-xs text-muted">describe the changes you'd like and we'll get right on it.</p>
+                <textarea
+                  value={revisionText}
+                  onChange={(e) => setRevisionText(e.target.value)}
+                  placeholder="tell us what you'd like changed..."
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-foreground placeholder:text-muted/50 focus:border-primary focus:outline-none resize-none"
+                  rows={4}
+                />
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={handleClientRevision}
+                    disabled={actionLoading || !revisionText.trim()}
+                    className="flex-1 rounded-lg bg-gradient-to-r from-primary to-secondary px-4 py-3 text-sm font-bold text-white shadow-md transition-all active:scale-[0.98] hover:shadow-lg disabled:opacity-50"
+                  >
+                    {actionLoading ? "sending..." : "send revision request"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setShowRevisionForm(false); setRevisionText(""); }}
+                    className="rounded-lg border border-gray-300 px-4 py-3 text-sm font-medium text-muted hover:text-foreground transition-colors"
+                  >
+                    cancel
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* step 4: revision sent confirmation */}
+            {activeStep.step === 4 && revisionSent && (
+              <div className="mt-4 space-y-3">
+                <div className="rounded-lg bg-gradient-to-r from-primary/5 to-secondary/5 border border-primary/15 px-4 py-3 text-center">
+                  <div className="flex items-center justify-center gap-2 mb-1">
+                    <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
+                    <p className="text-sm font-medium text-foreground">revision request sent</p>
+                  </div>
+                  <p className="text-xs text-muted">our team is working on your changes. this page will update when the new build is ready for review.</p>
+                </div>
+                {buildPreviewUrl && (
+                  <a
+                    href={buildPreviewUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block text-center text-xs text-muted hover:text-primary transition-colors"
+                  >
+                    view current build
+                  </a>
+                )}
+              </div>
             )}
           </div>
         )}

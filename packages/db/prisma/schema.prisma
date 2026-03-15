@@ -176,6 +176,8 @@ model Tracker {
   steps           Json?
   notifiedAt      DateTime?
   expiresAt       DateTime?
+  clientFeedback  String?      @db.Text
+  revisionStatus  String?
   createdAt       DateTime     @default(now())
 
   pipelineRun     PipelineRun? @relation(fields: [pipelineRunId], references: [id])
