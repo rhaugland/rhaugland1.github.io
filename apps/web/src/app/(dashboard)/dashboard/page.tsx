@@ -35,8 +35,10 @@ export default async function DashboardPage() {
     include: {
       tracker: {
         select: {
+          id: true,
           slug: true,
           currentStep: true,
+          steps: true,
           pipelineRun: {
             select: {
               id: true,
@@ -78,26 +80,45 @@ export default async function DashboardPage() {
     TRIPLE_FREEZE: "triple freeze",
   };
 
-  // split bookings into categories
-  const myBookings = currentEmployee
-    ? bookings.filter((b) => b.assigneeId === currentEmployee.id && !b.needsReview)
-    : [];
+  // auto-advance: move step 1 bookings to step 2 if meeting day has arrived
+  const today = new Date().toDateString();
+  for (const booking of bookings) {
+    if (
+      booking.tracker &&
+      booking.tracker.currentStep === 1 &&
+      booking.assigneeId &&
+      booking.meetingTime.toDateString() === today
+    ) {
+      const steps = booking.tracker.steps as Array<{
+        step: number; label: string; subtitle: string; status: string; completedAt: string | null;
+      }>;
+      const updatedSteps = steps.map((s, i) => ({
+        ...s,
+        status: i === 0 ? "done" : i === 1 ? "active" : s.status,
+        completedAt: i === 0 && s.status !== "done" ? new Date().toISOString() : s.completedAt,
+      }));
+
+      await prisma.tracker.update({
+        where: { id: booking.tracker.id },
+        data: { currentStep: 2, steps: updatedSteps },
+      });
+
+      // update in-memory so the page renders correctly
+      booking.tracker.currentStep = 2;
+      (booking.tracker as { steps: unknown }).steps = updatedSteps;
+    }
+  }
+
+  // filter: show my claimed bookings + unclaimed. hide other people's claimed bookings.
   const reviewBookings = currentEmployee
     ? bookings.filter((b) => b.assigneeId === currentEmployee.id && b.needsReview)
     : [];
-  const unclaimedBookings = bookings.filter((b) => !b.assigneeId);
 
-  // group unclaimed by current step
-  const columns = BOOKING_STEP_LABELS.map((label, i) => {
-    const step = i + 1;
-    return {
-      step,
-      label,
-      bookings: unclaimedBookings.filter((b) => (b.tracker?.currentStep ?? 0) === step),
-    };
-  });
-
-  const hasUnclaimed = unclaimedBookings.length > 0;
+  const visibleBookings = bookings.filter(
+    (b) =>
+      !b.needsReview &&
+      (!b.assigneeId || (currentEmployee && b.assigneeId === currentEmployee.id))
+  );
 
   function getBuildStatus(booking: (typeof bookings)[number]): {
     status: "none" | "analyzing" | "building" | "ready";
@@ -116,6 +137,18 @@ export default async function DashboardPage() {
 
     return { status: "analyzing" };
   }
+
+  // group visible bookings by step
+  const columns = BOOKING_STEP_LABELS.map((label, i) => {
+    const step = i + 1;
+    return {
+      step,
+      label,
+      bookings: visibleBookings.filter((b) => (b.tracker?.currentStep ?? 0) === step),
+    };
+  });
+
+  const totalVisible = visibleBookings.length;
 
   return (
     <div>
@@ -144,61 +177,21 @@ export default async function DashboardPage() {
         </div>
       )}
 
-      {/* my meetings */}
+      {/* unified kanban board */}
       <div>
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between mb-4">
           <div>
-            <h1 className="text-2xl font-extrabold text-foreground">my meetings</h1>
+            <h1 className="text-2xl font-extrabold text-foreground">meetings</h1>
             <p className="mt-1 text-sm text-muted">
-              bookings you've claimed, ordered by meeting date
+              {totalVisible > 0
+                ? "your bookings and unclaimed work, organized by step"
+                : "no bookings yet"}
             </p>
           </div>
           <SeedButton />
         </div>
 
-        {myBookings.length === 0 ? (
-          <div className="mt-4 rounded-xl bg-gray-50 border border-gray-200 px-6 py-10 text-center">
-            <p className="text-sm text-muted">no claimed bookings yet — grab one from below</p>
-          </div>
-        ) : (
-          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {myBookings.map((booking) => {
-              const currentStep = booking.tracker?.currentStep ?? 0;
-              const stepLabel = BOOKING_STEP_LABELS[currentStep - 1] ?? "";
-              const build = getBuildStatus(booking);
-              return (
-                <BookingCard
-                  key={booking.id}
-                  id={booking.id}
-                  name={booking.name}
-                  businessName={booking.businessName}
-                  plan={planLabels[booking.plan] ?? booking.plan}
-                  meetingTime={booking.meetingTime.toISOString()}
-                  trackingSlug={booking.tracker?.slug ?? null}
-                  assignee={booking.assignee}
-                  employees={employees.map((e) => ({ id: e.id, name: e.name }))}
-                  stepLabel={stepLabel}
-                  stepNumber={currentStep}
-                  buildStatus={build.status}
-                  buildPreviewUrl={build.previewUrl}
-                  pipelineRunId={booking.tracker?.pipelineRun?.id ?? null}
-                />
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      {/* unclaimed bookings board */}
-      <div className="mt-10">
-        <h2 className="text-lg font-extrabold text-foreground">unclaimed</h2>
-        <p className="mt-1 text-sm text-muted">
-          {hasUnclaimed
-            ? "claim a card to add it to your meetings"
-            : "all bookings are claimed"}
-        </p>
-
-        <div className="mt-4 flex gap-4 overflow-x-auto pb-4">
+        <div className="flex gap-4 overflow-x-auto pb-4">
           {columns.map((col) => (
             <div
               key={col.step}
@@ -223,19 +216,25 @@ export default async function DashboardPage() {
                     no bookings
                   </p>
                 )}
-                {col.bookings.map((booking) => (
-                  <BookingCard
-                    key={booking.id}
-                    id={booking.id}
-                    name={booking.name}
-                    businessName={booking.businessName}
-                    plan={planLabels[booking.plan] ?? booking.plan}
-                    meetingTime={booking.meetingTime.toISOString()}
-                    trackingSlug={booking.tracker?.slug ?? null}
-                    assignee={booking.assignee}
-                    employees={employees.map((e) => ({ id: e.id, name: e.name }))}
-                  />
-                ))}
+                {col.bookings.map((booking) => {
+                  const build = getBuildStatus(booking);
+                  return (
+                    <BookingCard
+                      key={booking.id}
+                      id={booking.id}
+                      name={booking.name}
+                      businessName={booking.businessName}
+                      plan={planLabels[booking.plan] ?? booking.plan}
+                      meetingTime={booking.meetingTime.toISOString()}
+                      trackingSlug={booking.tracker?.slug ?? null}
+                      assignee={booking.assignee}
+                      employees={employees.map((e) => ({ id: e.id, name: e.name }))}
+                      buildStatus={build.status}
+                      buildPreviewUrl={build.previewUrl}
+                      pipelineRunId={booking.tracker?.pipelineRun?.id ?? null}
+                    />
+                  );
+                })}
               </div>
             </div>
           ))}
