@@ -28,6 +28,8 @@ interface BookingCardProps {
   freeAddonEarned?: boolean;
   postmortemStatus?: "pending" | "reviewed" | null;
   postmortemPipelineRunId?: string | null;
+  nextWorkflowStatus?: "eligible" | "scheduled" | null;
+  workflowLabel?: string | null;
 }
 
 export function BookingCard({
@@ -55,6 +57,8 @@ export function BookingCard({
   freeAddonEarned,
   postmortemStatus,
   postmortemPipelineRunId,
+  nextWorkflowStatus,
+  workflowLabel,
 }: BookingCardProps) {
   const router = useRouter();
   const [claiming, setClaiming] = useState(false);
@@ -232,9 +236,16 @@ export function BookingCard({
           <p className="text-sm font-bold text-foreground truncate">{businessName}</p>
           <p className="text-xs text-muted truncate">{name}</p>
         </div>
-        <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
-          {plan}
-        </span>
+        <div className="flex items-center gap-1 shrink-0">
+          <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
+            {plan}
+          </span>
+          {workflowLabel && (
+            <span className="rounded-full bg-secondary/10 px-1.5 py-0.5 text-[9px] font-bold text-secondary">
+              #{workflowLabel}
+            </span>
+          )}
+        </div>
       </div>
 
       {/* meeting time */}
@@ -573,6 +584,29 @@ export function BookingCard({
           ) : (
             <div className="flex items-center gap-1.5 rounded-md bg-gray-100 border border-gray-200 px-2 py-1.5">
               <span className="text-[10px] text-muted">no pipeline run — postmortem unavailable</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* next workflow status */}
+      {nextWorkflowStatus && (
+        <div className="mt-2">
+          {nextWorkflowStatus === "scheduled" ? (
+            <div className="flex items-center gap-1.5 rounded-md bg-gradient-to-r from-primary/10 to-secondary/10 border border-primary/20 px-2 py-1.5">
+              <svg className="h-3 w-3 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+              <span className="text-[10px] font-bold text-primary">
+                next workflow scheduled {workflowLabel && `(${workflowLabel})`}
+              </span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1.5 rounded-md bg-blue-50 border border-blue-200 px-2 py-1.5">
+              <div className="h-2 w-2 rounded-full bg-blue-400 animate-pulse" />
+              <span className="text-[10px] font-medium text-blue-700">
+                waiting for client to schedule next workflow {workflowLabel && `(${workflowLabel})`}
+              </span>
             </div>
           )}
         </div>

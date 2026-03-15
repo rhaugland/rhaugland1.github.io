@@ -297,7 +297,47 @@ export async function sendFreeAddonReady({
   });
 }
 
-// ── 7. survey open (step 6 → 7) ──
+// ── 7. next workflow ready to schedule ──
+
+export async function sendNextWorkflowReady({
+  to,
+  name,
+  businessName,
+  bookingId,
+  workflowNumber,
+  totalWorkflows,
+}: {
+  to: string;
+  name: string;
+  businessName: string;
+  bookingId: string;
+  workflowNumber: number;
+  totalWorkflows: number;
+}) {
+  await send({
+    to,
+    subject: `${businessName} — time to schedule workflow ${workflowNumber} of ${totalWorkflows}`,
+    html: layout(`
+      <h2 style="margin:0 0 8px;font-size:18px;color:#111;">hey ${name},</h2>
+      <p style="margin:0 0 16px;font-size:14px;color:#6b7280;">
+        your first workflow for <strong>${businessName}</strong> is complete — nice! your plan includes <strong>${totalWorkflows} workflows</strong>, and it's time to kick off number <strong>${workflowNumber}</strong>.
+      </p>
+      <p style="margin:0 0 16px;font-size:14px;color:#6b7280;">
+        pick a meeting time and tell us what you'd like us to build next. same process, same team.
+      </p>
+      <div style="text-align:center;margin:20px 0;">
+        ${button(`${baseUrl()}/book/next/${bookingId}`, "schedule your next workflow")}
+      </div>
+      <p style="margin:16px 0 0;font-size:12px;color:#9ca3af;">
+        ${totalWorkflows - workflowNumber > 0
+          ? `you'll still have ${totalWorkflows - workflowNumber} more workflow${totalWorkflows - workflowNumber > 1 ? "s" : ""} after this one.`
+          : "this is your last included workflow — make it count!"}
+      </p>
+    `),
+  });
+}
+
+// ── 8. survey open (step 6 → 7) ──
 
 export async function sendSurveyOpen({
   to,

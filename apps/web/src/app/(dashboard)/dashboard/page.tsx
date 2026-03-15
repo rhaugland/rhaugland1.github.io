@@ -29,6 +29,12 @@ export default async function DashboardPage() {
     },
   });
 
+  const PLAN_WORKFLOW_COUNT: Record<string, number> = {
+    SINGLE_SCOOP: 1,
+    DOUBLE_BLEND: 2,
+    TRIPLE_FREEZE: 3,
+  };
+
   const bookings = await prisma.booking.findMany({
     where: { status: { in: ["CONFIRMED", "COMPLETED"] } },
     orderBy: { meetingTime: "asc" },
@@ -186,6 +192,20 @@ export default async function DashboardPage() {
     };
   });
 
+  // find all follow-up bookings to determine next workflow status
+  const completedBookingIds = visibleBookings
+    .filter((b) => b.status === "COMPLETED")
+    .map((b) => b.id);
+
+  const followUpBookings = completedBookingIds.length > 0
+    ? await prisma.booking.findMany({
+        where: { parentBookingId: { in: completedBookingIds } },
+        select: { parentBookingId: true },
+      })
+    : [];
+
+  const scheduledFollowUps = new Set(followUpBookings.map((f) => f.parentBookingId));
+
   const totalVisible = visibleBookings.length;
 
   return (
@@ -287,6 +307,19 @@ export default async function DashboardPage() {
                           : null
                       }
                       postmortemPipelineRunId={booking.tracker?.pipelineRun?.id ?? null}
+                      nextWorkflowStatus={
+                        booking.status === "COMPLETED" &&
+                        (PLAN_WORKFLOW_COUNT[booking.plan] ?? 1) > booking.workflowNumber
+                          ? scheduledFollowUps.has(booking.id)
+                            ? "scheduled"
+                            : "eligible"
+                          : null
+                      }
+                      workflowLabel={
+                        (PLAN_WORKFLOW_COUNT[booking.plan] ?? 1) > 1
+                          ? `${booking.workflowNumber} of ${PLAN_WORKFLOW_COUNT[booking.plan]}`
+                          : null
+                      }
                     />
                   );
                 })}

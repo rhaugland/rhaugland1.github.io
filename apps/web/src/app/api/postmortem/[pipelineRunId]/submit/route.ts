@@ -2,8 +2,15 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@slushie/db";
 import { getRedisPublisher } from "@/lib/redis";
+import { sendNextWorkflowReady } from "@/lib/email";
 import { Queue } from "bullmq";
 import pino from "pino";
+
+const PLAN_WORKFLOW_COUNT: Record<string, number> = {
+  SINGLE_SCOOP: 1,
+  DOUBLE_BLEND: 2,
+  TRIPLE_FREEZE: 3,
+};
 
 const logger = pino({ name: "api:postmortem-submit" });
 
@@ -122,6 +129,31 @@ export async function POST(
     { pipelineRunId, postmortemId: postmortem.id, submittedBy: session.user.email },
     "postmortem submitted — agent worker enqueued"
   );
+
+  // check if this booking has more workflows remaining (double blend = 2, triple freeze = 3)
+  const tracker = await prisma.tracker.findUnique({
+    where: { pipelineRunId },
+    include: {
+      booking: { select: { id: true, name: true, email: true, businessName: true, plan: true, workflowNumber: true } },
+    },
+  });
+
+  if (tracker?.booking) {
+    const totalWorkflows = PLAN_WORKFLOW_COUNT[tracker.booking.plan] ?? 1;
+    const currentWorkflow = tracker.booking.workflowNumber;
+
+    if (currentWorkflow < totalWorkflows) {
+      const nextWorkflow = currentWorkflow + 1;
+      sendNextWorkflowReady({
+        to: tracker.booking.email,
+        name: tracker.booking.name,
+        businessName: tracker.booking.businessName,
+        bookingId: tracker.booking.id,
+        workflowNumber: nextWorkflow,
+        totalWorkflows,
+      }).catch((err) => console.error("[email] next workflow ready failed:", err));
+    }
+  }
 
   return NextResponse.json({
     success: true,
