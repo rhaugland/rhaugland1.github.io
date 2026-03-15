@@ -41,7 +41,8 @@ export async function POST(
   });
 
   // trigger the analyst → builder pipeline if not already running
-  if (booking.tracker && !booking.tracker.pipelineRunId) {
+  // skip for demo bookings — they already have seeded build artifacts
+  if (booking.tracker && !booking.tracker.pipelineRunId && !booking.calendarEventId?.startsWith("demo-")) {
     try {
       // ensure booking has a client
       let clientId = booking.clientId;
