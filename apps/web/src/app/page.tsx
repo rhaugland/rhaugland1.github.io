@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { BookingForm } from "./booking-form";
 import { DemoButtons } from "./demo-buttons";
+import { DemoHeaderButtons } from "./demo-header-buttons";
 
 export default function Home() {
   return (
@@ -11,7 +12,8 @@ export default function Home() {
           <span className="text-xl font-extrabold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
             slushie
           </span>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
+            <DemoHeaderButtons />
             <a
               href="#contact"
               className="rounded-full bg-gradient-to-r from-primary to-secondary px-5 py-2 text-sm font-semibold text-white transition-transform hover:scale-105"
@@ -54,9 +56,6 @@ export default function Home() {
           <p className="mt-4 text-sm text-white/60">
             60 minutes. that's it. we handle the rest.
           </p>
-          <div className="mt-8 mx-auto max-w-xs">
-            <DemoButtons />
-          </div>
         </div>
       </section>
 
