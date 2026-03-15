@@ -2,6 +2,7 @@ import { prisma } from "@slushie/db";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { BookingCard } from "./booking-card";
+import { ReviewAlert } from "./review-alert";
 
 const BOOKING_STEP_LABELS = [
   "meeting confirmed",
@@ -46,9 +47,12 @@ export default async function DashboardPage() {
     TRIPLE_FREEZE: "triple freeze",
   };
 
-  // split: my claimed bookings vs unclaimed (available to grab)
+  // split bookings into categories
   const myBookings = currentEmployee
-    ? bookings.filter((b) => b.assigneeId === currentEmployee.id)
+    ? bookings.filter((b) => b.assigneeId === currentEmployee.id && !b.needsReview)
+    : [];
+  const reviewBookings = currentEmployee
+    ? bookings.filter((b) => b.assigneeId === currentEmployee.id && b.needsReview)
     : [];
   const unclaimedBookings = bookings.filter((b) => !b.assigneeId);
 
@@ -66,6 +70,31 @@ export default async function DashboardPage() {
 
   return (
     <div>
+      {/* reschedule notifications */}
+      {reviewBookings.length > 0 && (
+        <div className="mb-8">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="h-2.5 w-2.5 rounded-full bg-primary animate-pulse" />
+            <h2 className="text-lg font-extrabold text-foreground">needs your attention</h2>
+            <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-bold text-primary">
+              {reviewBookings.length}
+            </span>
+          </div>
+          <div className="space-y-3">
+            {reviewBookings.map((booking) => (
+              <ReviewAlert
+                key={booking.id}
+                id={booking.id}
+                businessName={booking.businessName}
+                name={booking.name}
+                plan={planLabels[booking.plan] ?? booking.plan}
+                meetingTime={booking.meetingTime.toISOString()}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* my meetings */}
       <div>
         <h1 className="text-2xl font-extrabold text-foreground">my meetings</h1>

@@ -76,6 +76,7 @@ export async function POST(
       data: {
         meetingTime: meetingDate,
         calendarEventId,
+        needsReview: !!booking.assigneeId,
       },
     });
   } catch {
