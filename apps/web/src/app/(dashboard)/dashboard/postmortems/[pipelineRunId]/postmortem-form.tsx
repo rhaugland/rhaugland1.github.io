@@ -16,6 +16,9 @@ interface PostmortemFormProps {
   agentScores: AgentScore[];
   existingFeedback: Record<string, string> | null;
   isSubmitted: boolean;
+  clientNps: number | null;
+  assigneeName: string | null;
+  assigneeAvgNps: number | null;
 }
 
 const AGENT_ORDER = ["listener", "analyst", "builder", "reviewer"];
@@ -25,6 +28,9 @@ export function PostmortemForm({
   agentScores,
   existingFeedback,
   isSubmitted,
+  clientNps,
+  assigneeName,
+  assigneeAvgNps,
 }: PostmortemFormProps) {
   const router = useRouter();
   const [feedback, setFeedback] = useState<Record<string, string>>(
@@ -95,6 +101,48 @@ export function PostmortemForm({
           />
         ))}
       </div>
+
+      {/* NPS insights section */}
+      {clientNps != null && (
+        <div className="mt-4 rounded-lg border border-gray-200 bg-white">
+          <div className="border-b border-gray-200 p-4">
+            <h3 className="text-sm font-bold text-foreground">NPS insights</h3>
+            <p className="mt-0.5 text-xs text-muted">
+              the client scored <span className="font-bold">{clientNps}/10</span>
+              {assigneeName && (
+                <>
+                  {" "}for{" "}
+                  <span className="font-bold">{assigneeName}</span>
+                  {assigneeAvgNps != null && (
+                    <span className="text-muted"> (avg {assigneeAvgNps})</span>
+                  )}
+                </>
+              )}
+              . what do you think drove this score?
+            </p>
+          </div>
+          <div className="p-4">
+            <label htmlFor="nps-insights" className="text-xs font-medium text-muted">
+              analyst &amp; developer observations
+            </label>
+            <textarea
+              id="nps-insights"
+              value={feedback["nps_insights"] ?? ""}
+              onChange={(e) => handleFeedbackChange("nps_insights", e.target.value)}
+              disabled={submitted}
+              placeholder={`what influenced this ${
+                clientNps >= 9
+                  ? "high"
+                  : clientNps >= 7
+                  ? "moderate"
+                  : "low"
+              } score? communication quality, build accuracy, turnaround time, anything ${assigneeName ? assigneeName + " " : ""}could improve?`}
+              rows={4}
+              className="mt-1 w-full rounded-lg border border-gray-200 bg-background px-3 py-2 text-sm placeholder:text-muted focus:border-secondary focus:outline-none focus:ring-1 focus:ring-secondary disabled:opacity-60"
+            />
+          </div>
+        </div>
+      )}
 
       {/* submit postmortem button — triggers the skill update loop */}
       <div className="mt-6 rounded-lg border border-gray-200 bg-white p-4">

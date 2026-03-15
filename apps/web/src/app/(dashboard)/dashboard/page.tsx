@@ -13,6 +13,7 @@ const BOOKING_STEP_LABELS = [
   "plug-in",
   "billing",
   "satisfaction survey",
+  "postmortem",
 ];
 
 export default async function DashboardPage() {
@@ -29,7 +30,7 @@ export default async function DashboardPage() {
   });
 
   const bookings = await prisma.booking.findMany({
-    where: { status: "CONFIRMED" },
+    where: { status: { in: ["CONFIRMED", "COMPLETED"] } },
     orderBy: { meetingTime: "asc" },
     include: {
       tracker: {
@@ -44,10 +45,17 @@ export default async function DashboardPage() {
           pluginStatus: true,
           paidAt: true,
           npsScore: true,
+          npsCompletedAt: true,
           pipelineRun: {
             select: {
               id: true,
               status: true,
+              postmortem: {
+                select: {
+                  id: true,
+                  employeeFeedback: true,
+                },
+              },
               call: {
                 select: {
                   analysis: {
@@ -78,6 +86,28 @@ export default async function DashboardPage() {
   const employees = await prisma.employee.findMany({
     orderBy: { name: "asc" },
   });
+
+  // compute average NPS per employee from their completed bookings
+  const npsData = await prisma.booking.findMany({
+    where: {
+      assigneeId: { not: null },
+      tracker: { npsScore: { not: null } },
+    },
+    select: {
+      assigneeId: true,
+      tracker: { select: { npsScore: true } },
+    },
+  });
+  const employeeAvgNps: Record<string, number> = {};
+  const npsBuckets: Record<string, number[]> = {};
+  for (const row of npsData) {
+    if (!row.assigneeId || row.tracker?.npsScore == null) continue;
+    if (!npsBuckets[row.assigneeId]) npsBuckets[row.assigneeId] = [];
+    npsBuckets[row.assigneeId].push(row.tracker.npsScore);
+  }
+  for (const [empId, scores] of Object.entries(npsBuckets)) {
+    employeeAvgNps[empId] = Math.round((scores.reduce((a, b) => a + b, 0) / scores.length) * 10) / 10;
+  }
 
   const planLabels: Record<string, string> = {
     SINGLE_SCOOP: "single scoop",
@@ -143,13 +173,16 @@ export default async function DashboardPage() {
     return { status: "analyzing" };
   }
 
-  // group visible bookings by step
+  // group visible bookings by step — COMPLETED bookings go to step 8 (postmortem)
   const columns = BOOKING_STEP_LABELS.map((label, i) => {
     const step = i + 1;
     return {
       step,
       label,
-      bookings: visibleBookings.filter((b) => (b.tracker?.currentStep ?? 0) === step),
+      bookings: visibleBookings.filter((b) => {
+        if (step === 8) return b.status === "COMPLETED";
+        return b.status !== "COMPLETED" && (b.tracker?.currentStep ?? 0) === step;
+      }),
     };
   });
 
@@ -234,6 +267,7 @@ export default async function DashboardPage() {
                       trackingSlug={booking.tracker?.slug ?? null}
                       assignee={booking.assignee}
                       employees={employees.map((e) => ({ id: e.id, name: e.name }))}
+                      employeeAvgNps={employeeAvgNps}
                       buildStatus={build.status}
                       buildPreviewUrl={build.previewUrl}
                       pipelineRunId={booking.tracker?.pipelineRun?.id ?? null}
@@ -245,6 +279,14 @@ export default async function DashboardPage() {
                       isPaid={!!booking.tracker?.paidAt}
                       npsScore={booking.tracker?.npsScore ?? null}
                       freeAddonEarned={booking.freeAddonEarned}
+                      postmortemStatus={
+                        booking.status === "COMPLETED"
+                          ? booking.tracker?.pipelineRun?.postmortem?.employeeFeedback
+                            ? "reviewed"
+                            : "pending"
+                          : null
+                      }
+                      postmortemPipelineRunId={booking.tracker?.pipelineRun?.id ?? null}
                     />
                   );
                 })}

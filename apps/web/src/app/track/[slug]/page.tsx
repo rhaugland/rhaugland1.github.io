@@ -62,13 +62,25 @@ export default async function TrackerPage({
           },
         },
       },
-      booking: { select: { id: true, businessName: true, meetingTime: true, plan: true } },
+      booking: { select: { id: true, businessName: true, meetingTime: true, plan: true, email: true, freeAddonEarned: true } },
     },
   });
 
   if (!tracker) {
     notFound();
   }
+
+  // check if this email has a free add-on from a previous booking
+  const hasFreeAddon = tracker.booking?.email
+    ? !!(await prisma.booking.findFirst({
+        where: {
+          email: tracker.booking.email,
+          freeAddonEarned: true,
+          id: { not: tracker.booking.id },
+        },
+        select: { id: true },
+      }))
+    : false;
 
   // expired links get a friendly message — 30 day expiry per spec
   if (tracker.expiresAt && tracker.expiresAt < new Date()) {
@@ -108,7 +120,12 @@ export default async function TrackerPage({
       pluginStatus={tracker.pluginStatus}
       isPaid={!!tracker.paidAt}
       planLabel={PLAN_LABELS[tracker.booking?.plan ?? ""] ?? "custom"}
-      planPrice={PLAN_PRICES[tracker.booking?.plan ?? ""] ?? "$0"}
+      planPrice={
+        hasFreeAddon && tracker.booking?.plan === "SINGLE_SCOOP"
+          ? "$0"
+          : PLAN_PRICES[tracker.booking?.plan ?? ""] ?? "$0"
+      }
+      hasFreeAddon={hasFreeAddon && tracker.booking?.plan === "SINGLE_SCOOP"}
       surveyCompleted={!!tracker.npsCompletedAt}
     />
   );

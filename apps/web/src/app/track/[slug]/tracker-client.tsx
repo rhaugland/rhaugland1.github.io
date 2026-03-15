@@ -36,6 +36,7 @@ interface TrackerClientProps {
   isPaid: boolean;
   planLabel: string;
   planPrice: string;
+  hasFreeAddon: boolean;
   surveyCompleted: boolean;
 }
 
@@ -53,6 +54,7 @@ export function TrackerClient({
   isPaid: initialIsPaid,
   planLabel,
   planPrice,
+  hasFreeAddon,
   surveyCompleted: initialSurveyCompleted,
 }: TrackerClientProps) {
   const [steps, setSteps] = useState<TrackerStep[]>(initialSteps);
@@ -306,7 +308,18 @@ export function TrackerClient({
         body: JSON.stringify({ slug }),
       });
       const data = await res.json();
-      if (data.url) {
+      if (data.free) {
+        // free add-on redeemed — mark paid and advance locally
+        setPaid(true);
+        setCurrentStep(7);
+        setSteps((prev) =>
+          prev.map((s, i) => ({
+            ...s,
+            status: i < 6 ? "done" : i === 6 ? "active" : s.status,
+            completedAt: i < 6 && !s.completedAt ? new Date().toISOString() : s.completedAt,
+          })) as TrackerStep[]
+        );
+      } else if (data.url) {
         window.location.href = data.url;
       } else {
         setActionError(data.error ?? "failed to create payment session");
@@ -693,24 +706,47 @@ export function TrackerClient({
                     </div>
                     <p className="text-2xl font-extrabold text-foreground">{planPrice}</p>
                   </div>
-                  <p className="text-xs text-muted mb-3">
-                    your tool is built, tested, and connected. complete payment to unlock full access.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={handlePayment}
-                    disabled={paymentLoading}
-                    className="w-full rounded-lg bg-gradient-to-r from-primary to-secondary px-4 py-3 text-sm font-bold text-white shadow-md transition-all active:scale-[0.98] hover:shadow-lg disabled:opacity-50"
-                  >
-                    {paymentLoading ? "opening checkout..." : "pay now"}
-                  </button>
+                  {hasFreeAddon ? (
+                    <>
+                      <div className="rounded-lg bg-gradient-to-r from-primary/5 to-secondary/5 border border-primary/15 px-3 py-2 mb-3">
+                        <p className="text-xs font-bold text-primary">free add-on reward applied!</p>
+                        <p className="text-[10px] text-muted mt-0.5">
+                          you earned this from a previous survey. this single scoop is on us.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handlePayment}
+                        disabled={paymentLoading}
+                        className="w-full rounded-lg bg-gradient-to-r from-primary to-secondary px-4 py-3 text-sm font-bold text-white shadow-md transition-all active:scale-[0.98] hover:shadow-lg disabled:opacity-50"
+                      >
+                        {paymentLoading ? "claiming..." : "claim free build"}
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-xs text-muted mb-3">
+                        your tool is built, tested, and connected. complete payment to unlock full access.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={handlePayment}
+                        disabled={paymentLoading}
+                        className="w-full rounded-lg bg-gradient-to-r from-primary to-secondary px-4 py-3 text-sm font-bold text-white shadow-md transition-all active:scale-[0.98] hover:shadow-lg disabled:opacity-50"
+                      >
+                        {paymentLoading ? "opening checkout..." : "pay now"}
+                      </button>
+                    </>
+                  )}
                 </div>
-                <div className="flex items-center justify-center gap-1.5 text-[10px] text-muted">
-                  <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                  </svg>
-                  secure payment via stripe
-                </div>
+                {!hasFreeAddon && (
+                  <div className="flex items-center justify-center gap-1.5 text-[10px] text-muted">
+                    <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                    </svg>
+                    secure payment via stripe
+                  </div>
+                )}
               </div>
             )}
 

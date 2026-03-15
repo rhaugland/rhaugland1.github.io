@@ -12,6 +12,7 @@ interface BookingCardProps {
   trackingSlug: string | null;
   assignee: { id: string; name: string } | null;
   employees: Array<{ id: string; name: string }>;
+  employeeAvgNps?: Record<string, number>;
   stepLabel?: string;
   stepNumber?: number;
   buildStatus?: "none" | "analyzing" | "building" | "ready";
@@ -25,6 +26,8 @@ interface BookingCardProps {
   isPaid?: boolean;
   npsScore?: number | null;
   freeAddonEarned?: boolean;
+  postmortemStatus?: "pending" | "reviewed" | null;
+  postmortemPipelineRunId?: string | null;
 }
 
 export function BookingCard({
@@ -36,6 +39,7 @@ export function BookingCard({
   trackingSlug,
   assignee,
   employees,
+  employeeAvgNps,
   stepLabel,
   stepNumber,
   buildStatus,
@@ -49,6 +53,8 @@ export function BookingCard({
   isPaid,
   npsScore,
   freeAddonEarned,
+  postmortemStatus,
+  postmortemPipelineRunId,
 }: BookingCardProps) {
   const router = useRouter();
   const [claiming, setClaiming] = useState(false);
@@ -523,6 +529,55 @@ export function BookingCard({
         </div>
       )}
 
+      {/* postmortem step 8 (internal) */}
+      {postmortemStatus && (
+        <div className="mt-2 space-y-1.5">
+          {npsScore != null && (
+            <div className="flex items-center justify-between rounded-md bg-gradient-to-r from-primary/10 to-secondary/10 border border-primary/20 px-2 py-1.5">
+              <span className="text-[10px] font-bold text-primary">client NPS: {npsScore}/10</span>
+              {assignee && employeeAvgNps?.[assignee.id] != null && (
+                <span className="text-[10px] text-muted">
+                  {assignee.name} avg: {employeeAvgNps[assignee.id]}
+                </span>
+              )}
+            </div>
+          )}
+          {freeAddonEarned && (
+            <div className="flex items-center gap-1.5 rounded-md bg-primary/5 border border-primary/15 px-2 py-1">
+              <span className="text-[10px] font-medium text-primary">free add-on earned</span>
+            </div>
+          )}
+          {postmortemPipelineRunId ? (
+            <a
+              href={`/dashboard/postmortems/${postmortemPipelineRunId}`}
+              className={`flex items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-[10px] font-bold transition-colors ${
+                postmortemStatus === "reviewed"
+                  ? "bg-gradient-to-r from-primary/10 to-secondary/10 border border-primary/20 text-primary"
+                  : "bg-amber-50 border border-amber-200 text-amber-700 hover:border-amber-300"
+              }`}
+            >
+              {postmortemStatus === "reviewed" ? (
+                <>
+                  <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  postmortem reviewed
+                </>
+              ) : (
+                <>
+                  <div className="h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
+                  review postmortem
+                </>
+              )}
+            </a>
+          ) : (
+            <div className="flex items-center gap-1.5 rounded-md bg-gray-100 border border-gray-200 px-2 py-1.5">
+              <span className="text-[10px] text-muted">no pipeline run — postmortem unavailable</span>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* start call — shown for claimed bookings on meeting day */}
       {assignee && pipelineRunId && new Date(meetingTime).toDateString() === new Date().toDateString() && (
         <a
@@ -545,6 +600,11 @@ export function BookingCard({
                 {assignee.name.charAt(0).toUpperCase()}
               </div>
               <span className="text-xs font-medium text-foreground">{assignee.name}</span>
+              {employeeAvgNps?.[assignee.id] != null && (
+                <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[9px] font-bold text-primary" title="avg NPS">
+                  {employeeAvgNps[assignee.id]}
+                </span>
+              )}
             </div>
             <button
               type="button"
@@ -572,9 +632,14 @@ export function BookingCard({
                     key={emp.id}
                     type="button"
                     onClick={() => handleClaim(emp.id)}
-                    className="block w-full px-3 py-2 text-left text-xs text-foreground hover:bg-primary/5 first:rounded-t-lg last:rounded-b-lg"
+                    className="flex w-full items-center justify-between px-3 py-2 text-left text-xs text-foreground hover:bg-primary/5 first:rounded-t-lg last:rounded-b-lg"
                   >
-                    {emp.name}
+                    <span>{emp.name}</span>
+                    {employeeAvgNps?.[emp.id] != null && (
+                      <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[9px] font-bold text-primary">
+                        {employeeAvgNps[emp.id]}
+                      </span>
+                    )}
                   </button>
                 ))}
                 {employees.length === 0 && (

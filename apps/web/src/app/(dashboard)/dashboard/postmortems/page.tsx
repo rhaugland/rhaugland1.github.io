@@ -23,6 +23,16 @@ export default async function PostmortemsListPage() {
     include: {
       client: true,
       postmortem: true,
+      tracker: {
+        select: {
+          npsScore: true,
+          booking: {
+            select: {
+              assignee: { select: { name: true } },
+            },
+          },
+        },
+      },
     },
     orderBy: { completedAt: "desc" },
   });
@@ -61,17 +71,35 @@ export default async function PostmortemsListPage() {
                             year: "numeric",
                           })
                         : "unknown"}
+                      {run.tracker?.booking?.assignee && (
+                        <span> &middot; {run.tracker.booking.assignee.name}</span>
+                      )}
                     </p>
                   </div>
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                      hasPostmortem
-                        ? "bg-green-100 text-green-700"
-                        : "bg-gray-100 text-gray-700"
-                    }`}
-                  >
-                    {hasPostmortem ? "reviewed" : "pending"}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    {run.tracker?.npsScore != null && (
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-xs font-bold ${
+                          run.tracker.npsScore >= 9
+                            ? "bg-green-100 text-green-700"
+                            : run.tracker.npsScore >= 7
+                            ? "bg-yellow-100 text-yellow-700"
+                            : "bg-red-100 text-red-700"
+                        }`}
+                      >
+                        NPS {run.tracker.npsScore}
+                      </span>
+                    )}
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                        hasPostmortem
+                          ? "bg-green-100 text-green-700"
+                          : "bg-gray-100 text-gray-700"
+                      }`}
+                    >
+                      {hasPostmortem ? "reviewed" : "pending"}
+                    </span>
+                  </div>
                 </div>
               </Link>
             );

@@ -56,7 +56,7 @@ export async function POST(
     );
   }
 
-  // validate feedback has entries for all 4 agent types
+  // validate feedback has entries for all 4 agent types (nps_insights is optional)
   const validAgentTypes = ["listener", "analyst", "builder", "reviewer"];
   for (const agentType of validAgentTypes) {
     if (typeof body.feedback[agentType] !== "string") {

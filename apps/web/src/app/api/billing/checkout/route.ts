@@ -45,6 +45,36 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "invalid plan" }, { status: 400 });
   }
 
+  // check if this email earned a free add-on from a previous booking
+  const hasFreeAddon = await prisma.booking.findFirst({
+    where: {
+      email: tracker.booking.email,
+      freeAddonEarned: true,
+      id: { not: tracker.booking.id },
+    },
+    select: { id: true },
+  });
+
+  // free single scoop for returning clients with earned add-on
+  if (hasFreeAddon && plan === "SINGLE_SCOOP") {
+    // mark all steps up to step 6 as done, step 7 as active
+    const steps = tracker.steps as Array<{
+      step: number; label: string; subtitle: string; status: string; completedAt: string | null;
+    }>;
+    const updatedSteps = steps.map((s, i) => ({
+      ...s,
+      status: i < 6 ? "done" : i === 6 ? "active" : s.status,
+      completedAt: i < 6 && !s.completedAt ? new Date().toISOString() : s.completedAt,
+    }));
+
+    await prisma.tracker.update({
+      where: { id: tracker.id },
+      data: { paidAt: new Date(), currentStep: 7, steps: updatedSteps },
+    });
+
+    return NextResponse.json({ free: true });
+  }
+
   const origin = request.headers.get("origin") ?? "http://localhost:3000";
 
   const session = await stripe.checkout.sessions.create({
