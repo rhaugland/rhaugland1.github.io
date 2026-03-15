@@ -22,6 +22,7 @@ interface BookingCardProps {
   revisionStatus?: string | null;
   pluginCredentials?: Array<{ service: string; value: string }> | null;
   pluginStatus?: string | null;
+  isPaid?: boolean;
 }
 
 export function BookingCard({
@@ -43,6 +44,7 @@ export function BookingCard({
   revisionStatus,
   pluginCredentials,
   pluginStatus,
+  isPaid,
 }: BookingCardProps) {
   const router = useRouter();
   const [claiming, setClaiming] = useState(false);
@@ -476,6 +478,23 @@ export function BookingCard({
           >
             {pluginLoading ? "completing..." : "mark connected — advance to billing"}
           </button>
+        </div>
+      )}
+
+      {/* billing step 6 */}
+      {currentStep === 6 && (
+        <div className="mt-2">
+          {isPaid ? (
+            <div className="flex items-center gap-1.5 rounded-md bg-gradient-to-r from-primary/10 to-secondary/10 border border-primary/20 px-2 py-1.5">
+              <div className="h-2 w-2 rounded-full bg-primary" />
+              <span className="text-[10px] font-bold text-primary">payment received</span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1.5 rounded-md bg-amber-50 border border-amber-200 px-2 py-1.5">
+              <div className="h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
+              <span className="text-[10px] font-medium text-amber-700">waiting for client payment...</span>
+            </div>
+          )}
         </div>
       )}
 

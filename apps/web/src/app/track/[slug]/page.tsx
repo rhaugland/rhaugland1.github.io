@@ -11,6 +11,18 @@ interface TrackerStep {
   completedAt: string | null;
 }
 
+const PLAN_LABELS: Record<string, string> = {
+  SINGLE_SCOOP: "single scoop",
+  DOUBLE_BLEND: "double blend",
+  TRIPLE_FREEZE: "triple freeze",
+};
+
+const PLAN_PRICES: Record<string, string> = {
+  SINGLE_SCOOP: "$3,500",
+  DOUBLE_BLEND: "$6,000",
+  TRIPLE_FREEZE: "$8,500",
+};
+
 export const metadata: Metadata = {
   title: "slushie — tracking your build",
   description: "watch your custom tool come together.",
@@ -50,7 +62,7 @@ export default async function TrackerPage({
           },
         },
       },
-      booking: { select: { id: true, businessName: true, meetingTime: true } },
+      booking: { select: { id: true, businessName: true, meetingTime: true, plan: true } },
     },
   });
 
@@ -94,6 +106,9 @@ export default async function TrackerPage({
       buildPreviewUrl={buildPreviewUrl}
       revisionStatus={tracker.revisionStatus}
       pluginStatus={tracker.pluginStatus}
+      isPaid={!!tracker.paidAt}
+      planLabel={PLAN_LABELS[tracker.booking?.plan ?? ""] ?? "custom"}
+      planPrice={PLAN_PRICES[tracker.booking?.plan ?? ""] ?? "$0"}
     />
   );
 }

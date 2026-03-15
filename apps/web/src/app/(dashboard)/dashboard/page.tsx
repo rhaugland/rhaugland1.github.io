@@ -42,6 +42,7 @@ export default async function DashboardPage() {
           revisionStatus: true,
           pluginCredentials: true,
           pluginStatus: true,
+          paidAt: true,
           pipelineRun: {
             select: {
               id: true,
@@ -240,6 +241,7 @@ export default async function DashboardPage() {
                       revisionStatus={booking.tracker?.revisionStatus ?? null}
                       pluginCredentials={(booking.tracker?.pluginCredentials as Array<{ service: string; value: string }>) ?? null}
                       pluginStatus={booking.tracker?.pluginStatus ?? null}
+                      isPaid={!!booking.tracker?.paidAt}
                     />
                   );
                 })}

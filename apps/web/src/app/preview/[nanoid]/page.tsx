@@ -77,6 +77,34 @@ export default async function PreviewPage({
 
   const clientName = pipelineRun?.client.name ?? "your project";
 
+  // check payment status — lock preview if unpaid
+  if (!tracker.paidAt) {
+    return (
+      <main className="flex min-h-screen flex-col items-center justify-center slushie-gradient px-4">
+        <div className="w-full max-w-md text-center">
+          <h1 className="text-2xl font-extrabold text-primary">slushie</h1>
+          <div className="mt-8 rounded-2xl bg-white/80 shadow-lg backdrop-blur-sm p-6">
+            <div className="mx-auto h-16 w-16 rounded-full bg-gray-100 flex items-center justify-center mb-4">
+              <svg className="h-8 w-8 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
+            </div>
+            <p className="text-lg font-bold text-foreground">build locked</p>
+            <p className="mt-2 text-sm text-muted">
+              your tool is ready, but access is locked until payment is complete.
+            </p>
+            <p className="mt-4 text-xs text-muted">
+              check your tracker link to complete payment and unlock your build.
+            </p>
+          </div>
+        </div>
+        <div className="mt-8 text-center text-xs text-muted/60">
+          <p>powered by slushie</p>
+        </div>
+      </main>
+    );
+  }
+
   // extract walkthrough steps from prototype manifest
   interface WalkthroughStep {
     target_component: string;

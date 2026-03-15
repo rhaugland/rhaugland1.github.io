@@ -180,6 +180,8 @@ model Tracker {
   revisionStatus  String?
   pluginCredentials Json?
   pluginStatus    String?
+  paidAt          DateTime?
+  stripeSessionId String?
   createdAt       DateTime     @default(now())
 
   pipelineRun     PipelineRun? @relation(fields: [pipelineRunId], references: [id])

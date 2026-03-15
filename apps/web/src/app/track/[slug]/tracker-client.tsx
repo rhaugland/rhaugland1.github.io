@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 
 interface TrackerStep {
   step: number;
@@ -32,6 +33,9 @@ interface TrackerClientProps {
   buildPreviewUrl: string | null;
   revisionStatus: string | null;
   pluginStatus: string | null;
+  isPaid: boolean;
+  planLabel: string;
+  planPrice: string;
 }
 
 export function TrackerClient({
@@ -45,6 +49,9 @@ export function TrackerClient({
   buildPreviewUrl,
   revisionStatus: initialRevisionStatus,
   pluginStatus: initialPluginStatus,
+  isPaid: initialIsPaid,
+  planLabel,
+  planPrice,
 }: TrackerClientProps) {
   const [steps, setSteps] = useState<TrackerStep[]>(initialSteps);
   const [currentStep, setCurrentStep] = useState(initialCurrentStep);
@@ -69,6 +76,8 @@ export function TrackerClient({
     initialPluginStatus === "credentials_received" || initialPluginStatus === "connecting" || initialPluginStatus === "connected"
   );
   const [pluginStatus, setPluginStatus] = useState(initialPluginStatus);
+  const [paid, setPaid] = useState(initialIsPaid);
+  const [paymentLoading, setPaymentLoading] = useState(false);
 
   useEffect(() => {
     const eventSource = new EventSource(`/api/track/${slug}/events`);
@@ -110,6 +119,14 @@ export function TrackerClient({
       eventSource.close();
     };
   }, [slug]);
+
+  // detect return from Stripe checkout
+  const searchParams = useSearchParams();
+  useEffect(() => {
+    if (searchParams.get("paid") === "true" && !paid) {
+      setPaid(true);
+    }
+  }, [searchParams, paid]);
 
   const canModify = bookingId && currentStep <= 1 && !cancelled;
 
@@ -271,6 +288,28 @@ export function TrackerClient({
   function removeCredential(index: number) {
     if (credentials.length <= 1) return;
     setCredentials((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  async function handlePayment() {
+    setPaymentLoading(true);
+    setActionError(null);
+    try {
+      const res = await fetch("/api/billing/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ slug }),
+      });
+      const data = await res.json();
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        setActionError(data.error ?? "failed to create payment session");
+      }
+    } catch {
+      setActionError("something went wrong. please try again.");
+    } finally {
+      setPaymentLoading(false);
+    }
   }
 
   const currentDaySlots = rescheduleSlots.find((s) => s.date === rescheduleDay);
@@ -601,6 +640,48 @@ export function TrackerClient({
                       ? "our developer is wiring everything up. this page will update when it's live."
                       : "our team has your credentials and will begin connecting shortly."}
                   </p>
+                </div>
+              </div>
+            )}
+
+            {/* step 6: billing */}
+            {activeStep.step === 6 && !paid && (
+              <div className="mt-4 space-y-3">
+                <div className="rounded-lg bg-white border border-gray-200 p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <div>
+                      <p className="text-xs text-muted">your plan</p>
+                      <p className="text-sm font-bold text-foreground">{planLabel}</p>
+                    </div>
+                    <p className="text-2xl font-extrabold text-foreground">{planPrice}</p>
+                  </div>
+                  <p className="text-xs text-muted mb-3">
+                    your tool is built, tested, and connected. complete payment to unlock full access.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handlePayment}
+                    disabled={paymentLoading}
+                    className="w-full rounded-lg bg-gradient-to-r from-primary to-secondary px-4 py-3 text-sm font-bold text-white shadow-md transition-all active:scale-[0.98] hover:shadow-lg disabled:opacity-50"
+                  >
+                    {paymentLoading ? "opening checkout..." : "pay now"}
+                  </button>
+                </div>
+                <div className="flex items-center justify-center gap-1.5 text-[10px] text-muted">
+                  <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                  </svg>
+                  secure payment via stripe
+                </div>
+              </div>
+            )}
+
+            {/* step 6: paid confirmation */}
+            {activeStep.step === 6 && paid && (
+              <div className="mt-4">
+                <div className="rounded-lg bg-gradient-to-r from-primary/5 to-secondary/5 border border-primary/15 px-4 py-3 text-center">
+                  <p className="text-sm font-bold text-foreground">payment received!</p>
+                  <p className="text-xs text-muted mt-1">your build is now fully unlocked. almost done.</p>
                 </div>
               </div>
             )}
