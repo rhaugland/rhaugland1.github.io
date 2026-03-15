@@ -12,6 +12,8 @@ interface BookingCardProps {
   trackingSlug: string | null;
   assignee: { id: string; name: string } | null;
   employees: Array<{ id: string; name: string }>;
+  stepLabel?: string;
+  stepNumber?: number;
 }
 
 export function BookingCard({
@@ -23,6 +25,8 @@ export function BookingCard({
   trackingSlug,
   assignee,
   employees,
+  stepLabel,
+  stepNumber,
 }: BookingCardProps) {
   const router = useRouter();
   const [claiming, setClaiming] = useState(false);
@@ -68,6 +72,16 @@ export function BookingCard({
 
   return (
     <div className="rounded-lg bg-white border border-gray-200 p-3 shadow-sm">
+      {/* step badge — shown in "my meetings" view */}
+      {stepLabel && (
+        <div className="mb-2 flex items-center gap-1.5">
+          <span className="rounded-full bg-secondary/10 px-2 py-0.5 text-[10px] font-bold text-secondary">
+            step {stepNumber}
+          </span>
+          <span className="text-[10px] text-muted">{stepLabel}</span>
+        </div>
+      )}
+
       {/* header */}
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">

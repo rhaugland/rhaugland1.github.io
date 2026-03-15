@@ -18,9 +18,18 @@ export default async function DashboardPage() {
   const session = await auth();
   if (!session) redirect("/api/auth/signin?callbackUrl=/dashboard");
 
+  const userEmail = session.user?.email ?? "";
+
+  // find the employee record matching the logged-in user
+  const currentEmployee = await prisma.employee.findFirst({
+    where: {
+      email: { equals: userEmail, mode: "insensitive" },
+    },
+  });
+
   const bookings = await prisma.booking.findMany({
     where: { status: "CONFIRMED" },
-    orderBy: { createdAt: "asc" },
+    orderBy: { meetingTime: "asc" },
     include: {
       tracker: { select: { slug: true, currentStep: true } },
       assignee: { select: { id: true, name: true } },
@@ -37,49 +46,43 @@ export default async function DashboardPage() {
     TRIPLE_FREEZE: "triple freeze",
   };
 
-  // group bookings by current step
+  // split: my claimed bookings vs unclaimed (available to grab)
+  const myBookings = currentEmployee
+    ? bookings.filter((b) => b.assigneeId === currentEmployee.id)
+    : [];
+  const unclaimedBookings = bookings.filter((b) => !b.assigneeId);
+
+  // group unclaimed by current step
   const columns = BOOKING_STEP_LABELS.map((label, i) => {
     const step = i + 1;
     return {
       step,
       label,
-      bookings: bookings.filter((b) => (b.tracker?.currentStep ?? 0) === step),
+      bookings: unclaimedBookings.filter((b) => (b.tracker?.currentStep ?? 0) === step),
     };
   });
 
+  const hasUnclaimed = unclaimedBookings.length > 0;
+
   return (
     <div>
-      <h1 className="text-2xl font-extrabold text-foreground">dashboard</h1>
-      <p className="mt-1 text-sm text-muted">
-        active bookings by step — claim a card to own it
-      </p>
+      {/* my meetings */}
+      <div>
+        <h1 className="text-2xl font-extrabold text-foreground">my meetings</h1>
+        <p className="mt-1 text-sm text-muted">
+          bookings you've claimed, ordered by meeting date
+        </p>
 
-      <div className="mt-6 flex gap-4 overflow-x-auto pb-4">
-        {columns.map((col) => (
-          <div
-            key={col.step}
-            className="flex-shrink-0 w-72 rounded-xl bg-gray-50 border border-gray-200"
-          >
-            {/* column header */}
-            <div className="sticky top-0 px-3 py-3 border-b border-gray-200 bg-gray-50 rounded-t-xl">
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-bold text-foreground">
-                  {col.step}. {col.label}
-                </p>
-                <span className="rounded-full bg-gray-200 px-2 py-0.5 text-[10px] font-bold text-muted">
-                  {col.bookings.length}
-                </span>
-              </div>
-            </div>
-
-            {/* cards */}
-            <div className="p-2 space-y-2 min-h-[120px]">
-              {col.bookings.length === 0 && (
-                <p className="text-center text-xs text-muted/50 py-8">
-                  no bookings
-                </p>
-              )}
-              {col.bookings.map((booking) => (
+        {myBookings.length === 0 ? (
+          <div className="mt-4 rounded-xl bg-gray-50 border border-gray-200 px-6 py-10 text-center">
+            <p className="text-sm text-muted">no claimed bookings yet — grab one from below</p>
+          </div>
+        ) : (
+          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {myBookings.map((booking) => {
+              const currentStep = booking.tracker?.currentStep ?? 0;
+              const stepLabel = BOOKING_STEP_LABELS[currentStep - 1] ?? "";
+              return (
                 <BookingCard
                   key={booking.id}
                   id={booking.id}
@@ -90,11 +93,66 @@ export default async function DashboardPage() {
                   trackingSlug={booking.tracker?.slug ?? null}
                   assignee={booking.assignee}
                   employees={employees.map((e) => ({ id: e.id, name: e.name }))}
+                  stepLabel={stepLabel}
+                  stepNumber={currentStep}
                 />
-              ))}
-            </div>
+              );
+            })}
           </div>
-        ))}
+        )}
+      </div>
+
+      {/* unclaimed bookings board */}
+      <div className="mt-10">
+        <h2 className="text-lg font-extrabold text-foreground">unclaimed</h2>
+        <p className="mt-1 text-sm text-muted">
+          {hasUnclaimed
+            ? "claim a card to add it to your meetings"
+            : "all bookings are claimed"}
+        </p>
+
+        <div className="mt-4 flex gap-4 overflow-x-auto pb-4">
+          {columns.map((col) => (
+            <div
+              key={col.step}
+              className="flex-shrink-0 w-72 rounded-xl bg-gray-50 border border-gray-200"
+            >
+              {/* column header */}
+              <div className="sticky top-0 px-3 py-3 border-b border-gray-200 bg-gray-50 rounded-t-xl">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-bold text-foreground">
+                    {col.step}. {col.label}
+                  </p>
+                  <span className="rounded-full bg-gray-200 px-2 py-0.5 text-[10px] font-bold text-muted">
+                    {col.bookings.length}
+                  </span>
+                </div>
+              </div>
+
+              {/* cards */}
+              <div className="p-2 space-y-2 min-h-[120px]">
+                {col.bookings.length === 0 && (
+                  <p className="text-center text-xs text-muted/50 py-8">
+                    no bookings
+                  </p>
+                )}
+                {col.bookings.map((booking) => (
+                  <BookingCard
+                    key={booking.id}
+                    id={booking.id}
+                    name={booking.name}
+                    businessName={booking.businessName}
+                    plan={planLabels[booking.plan] ?? booking.plan}
+                    meetingTime={booking.meetingTime.toISOString()}
+                    trackingSlug={booking.tracker?.slug ?? null}
+                    assignee={booking.assignee}
+                    employees={employees.map((e) => ({ id: e.id, name: e.name }))}
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
