@@ -6,12 +6,11 @@ import { createCalendarEvent } from "@/lib/google-calendar";
 const BOOKING_STEPS = [
   { step: 1, label: "meeting confirmed", subtitle: "your blend is scheduled. we'll see you there." },
   { step: 2, label: "meeting", subtitle: "we're on the call. workflow discovery in progress." },
-  { step: 3, label: "build completion", subtitle: "your tool is built. time for a taste test." },
-  { step: 4, label: "slushie build review", subtitle: "our team is reviewing the build for quality." },
-  { step: 5, label: "client build approval", subtitle: "your turn. take a look and let us know." },
-  { step: 6, label: "plug-in", subtitle: "connecting to your tools. almost there." },
-  { step: 7, label: "billing", subtitle: "invoice sent. simple and transparent." },
-  { step: 8, label: "satisfaction survey", subtitle: "how'd we do? we want to keep getting better." },
+  { step: 3, label: "slushie build review", subtitle: "our team is reviewing the build for quality." },
+  { step: 4, label: "client build approval", subtitle: "your turn. take a look and let us know." },
+  { step: 5, label: "plug-in", subtitle: "connecting to your tools. almost there." },
+  { step: 6, label: "billing", subtitle: "invoice sent. simple and transparent." },
+  { step: 7, label: "satisfaction survey", subtitle: "how'd we do? we want to keep getting better." },
 ];
 
 const VALID_PLANS = ["SINGLE_SCOOP", "DOUBLE_BLEND", "TRIPLE_FREEZE"] as const;
@@ -116,7 +115,7 @@ export async function POST(request: Request) {
       },
     });
 
-    // 5. create Tracker with 8 steps, step 1 done
+    // 5. create Tracker with 7 steps, step 1 done
     const slug = nanoid(21);
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 30);

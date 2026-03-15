@@ -281,7 +281,7 @@ export default function LiveCallPage() {
         body: JSON.stringify({ pipelineRunId, transcript: finalTranscript }),
       });
 
-      // advance booking tracker to step 3 (build completion)
+      // advance booking tracker to step 3 (slushie build review)
       await fetch(`/api/calls/advance-tracker`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },

@@ -24,14 +24,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, message: "no booking tracker to advance" });
   }
 
-  // advance to step 3 (build completion) after call ends
+  // advance to step 3 (slushie build review) after call ends
   const steps = tracker.steps as Array<{
     step: number; label: string; subtitle: string; status: string; completedAt: string | null;
   }>;
   const updatedSteps = steps.map((s, i) => ({
     ...s,
-    status: i <= 2 ? "done" : i === 3 ? "active" : s.status,
-    completedAt: i <= 2 && s.status !== "done" ? new Date().toISOString() : s.completedAt,
+    status: i <= 1 ? "done" : i === 2 ? "active" : s.status,
+    completedAt: i <= 1 && s.status !== "done" ? new Date().toISOString() : s.completedAt,
   }));
 
   await prisma.tracker.update({

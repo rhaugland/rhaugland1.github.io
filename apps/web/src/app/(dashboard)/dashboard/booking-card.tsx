@@ -17,6 +17,7 @@ interface BookingCardProps {
   buildStatus?: "none" | "analyzing" | "building" | "ready";
   buildPreviewUrl?: string;
   pipelineRunId?: string | null;
+  currentStep?: number;
 }
 
 export function BookingCard({
@@ -33,10 +34,15 @@ export function BookingCard({
   buildStatus,
   buildPreviewUrl,
   pipelineRunId,
+  currentStep,
 }: BookingCardProps) {
   const router = useRouter();
   const [claiming, setClaiming] = useState(false);
   const [showEmployees, setShowEmployees] = useState(false);
+  const [showFeedback, setShowFeedback] = useState(false);
+  const [feedback, setFeedback] = useState("");
+  const [reviewLoading, setReviewLoading] = useState(false);
+  const [changesPending, setChangesPending] = useState(false);
 
   const meetingLabel = new Date(meetingTime).toLocaleDateString("en-US", {
     month: "short",
@@ -75,6 +81,43 @@ export function BookingCard({
       setClaiming(false);
     }
   }
+
+  async function handleApprove() {
+    setReviewLoading(true);
+    try {
+      const res = await fetch(`/api/booking/${id}/build-review`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "approve" }),
+      });
+      if (res.ok) {
+        router.refresh();
+      }
+    } finally {
+      setReviewLoading(false);
+    }
+  }
+
+  async function handleRequestChanges() {
+    if (!feedback.trim()) return;
+    setReviewLoading(true);
+    try {
+      const res = await fetch(`/api/booking/${id}/build-review`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "request_changes", feedback: feedback.trim() }),
+      });
+      if (res.ok) {
+        setShowFeedback(false);
+        setFeedback("");
+        setChangesPending(true);
+      }
+    } finally {
+      setReviewLoading(false);
+    }
+  }
+
+  const isSlushieReview = currentStep === 3;
 
   return (
     <div className="rounded-lg bg-white border border-gray-200 p-3 shadow-sm">
@@ -133,6 +176,103 @@ export function BookingCard({
               <span className="text-[10px] font-bold text-primary">initial build ready — view</span>
             </a>
           )}
+        </div>
+      )}
+
+      {/* slushie review actions — step 3 */}
+      {isSlushieReview && !changesPending && !showFeedback && (
+        <div className="mt-2 space-y-1.5">
+          {buildPreviewUrl && (
+            <a
+              href={buildPreviewUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-center gap-1.5 rounded-md bg-gradient-to-r from-primary/10 to-secondary/10 border border-primary/20 px-2 py-1.5 text-[10px] font-bold text-primary hover:border-primary/40 transition-colors"
+            >
+              <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+              </svg>
+              view build
+            </a>
+          )}
+          <div className="flex gap-1.5">
+            <button
+              type="button"
+              onClick={handleApprove}
+              disabled={reviewLoading}
+              className="flex-1 rounded-md bg-gradient-to-r from-primary to-secondary px-2 py-1.5 text-[10px] font-bold text-white transition-all hover:shadow-md active:scale-[0.98] disabled:opacity-50"
+            >
+              {reviewLoading ? "..." : "approve"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowFeedback(true)}
+              disabled={reviewLoading}
+              className="flex-1 rounded-md border border-gray-300 px-2 py-1.5 text-[10px] font-medium text-foreground hover:border-primary hover:text-primary transition-colors disabled:opacity-50"
+            >
+              suggest changes
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* feedback text box */}
+      {isSlushieReview && showFeedback && !changesPending && (
+        <div className="mt-2 space-y-1.5">
+          <textarea
+            value={feedback}
+            onChange={(e) => setFeedback(e.target.value)}
+            placeholder="describe the changes you'd like..."
+            className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-xs text-foreground placeholder:text-muted/50 focus:border-primary focus:outline-none resize-none"
+            rows={3}
+          />
+          <div className="flex gap-1.5">
+            <button
+              type="button"
+              onClick={handleRequestChanges}
+              disabled={reviewLoading || !feedback.trim()}
+              className="flex-1 rounded-md bg-gradient-to-r from-primary to-secondary px-2 py-1.5 text-[10px] font-bold text-white transition-all hover:shadow-md active:scale-[0.98] disabled:opacity-50"
+            >
+              {reviewLoading ? "sending..." : "send"}
+            </button>
+            <button
+              type="button"
+              onClick={() => { setShowFeedback(false); setFeedback(""); }}
+              className="rounded-md border border-gray-300 px-2 py-1.5 text-[10px] font-medium text-muted hover:text-foreground transition-colors"
+            >
+              cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* changes pending indicator */}
+      {isSlushieReview && changesPending && (
+        <div className="mt-2 space-y-1.5">
+          <div className="flex items-center gap-1.5 rounded-md bg-amber-50 border border-amber-200 px-2 py-1.5">
+            <div className="h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
+            <span className="text-[10px] font-medium text-amber-700">changes pending...</span>
+          </div>
+          <div className="flex gap-1.5">
+            {buildPreviewUrl && (
+              <a
+                href={buildPreviewUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex-1 text-center rounded-md border border-gray-300 px-2 py-1.5 text-[10px] font-medium text-foreground hover:border-primary hover:text-primary transition-colors"
+              >
+                view build
+              </a>
+            )}
+            <button
+              type="button"
+              onClick={() => setChangesPending(false)}
+              className="flex-1 rounded-md border border-gray-300 px-2 py-1.5 text-[10px] font-medium text-foreground hover:border-primary hover:text-primary transition-colors"
+            >
+              review again
+            </button>
+          </div>
         </div>
       )}
 

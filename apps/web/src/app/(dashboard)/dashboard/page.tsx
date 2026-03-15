@@ -8,7 +8,6 @@ import { SeedButton } from "./seed-button";
 const BOOKING_STEP_LABELS = [
   "meeting confirmed",
   "meeting",
-  "build completion",
   "slushie build review",
   "client build approval",
   "plug-in",
@@ -232,6 +231,7 @@ export default async function DashboardPage() {
                       buildStatus={build.status}
                       buildPreviewUrl={build.previewUrl}
                       pipelineRunId={booking.tracker?.pipelineRun?.id ?? null}
+                      currentStep={booking.tracker?.currentStep ?? 0}
                     />
                   );
                 })}

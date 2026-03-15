@@ -10,29 +10,36 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json();
-  const { callId, pipelineRunId, transcript } = body;
+  const { pipelineRunId, transcript } = body;
 
-  if (!callId || !pipelineRunId) {
+  if (!pipelineRunId) {
     return NextResponse.json(
-      { error: "callId and pipelineRunId are required" },
+      { error: "pipelineRunId is required" },
       { status: 400 }
     );
   }
 
-  // update call with end time and final transcript
+  // find the pipeline run and its call
+  const pipelineRun = await prisma.pipelineRun.findUnique({
+    where: { id: pipelineRunId },
+    include: { call: { include: { client: true } } },
+  });
+
+  if (!pipelineRun || !pipelineRun.call) {
+    return NextResponse.json({ error: "call not found" }, { status: 404 });
+  }
+
   const endedAt = new Date();
+
+  // update call with end time and transcript
   const call = await prisma.call.update({
-    where: { id: callId },
+    where: { id: pipelineRun.call.id },
     data: {
       endedAt,
       transcript: transcript ?? null,
     },
     include: { client: true },
   });
-
-  if (!call) {
-    return NextResponse.json({ error: "call not found" }, { status: 404 });
-  }
 
   const durationMs = call.startedAt
     ? endedAt.getTime() - call.startedAt.getTime()
