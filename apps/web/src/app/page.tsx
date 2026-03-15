@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { BookingForm } from "./booking-form";
+import { DemoButtons } from "./demo-buttons";
 
 export default function Home() {
   return (
@@ -53,6 +54,9 @@ export default function Home() {
           <p className="mt-4 text-sm text-white/60">
             60 minutes. that's it. we handle the rest.
           </p>
+          <div className="mt-8 mx-auto max-w-xs">
+            <DemoButtons />
+          </div>
         </div>
       </section>
 

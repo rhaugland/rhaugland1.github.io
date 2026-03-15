@@ -72,6 +72,7 @@ export function BookingCard({
   const [clientBuildPending, setClientBuildPending] = useState(revisionStatus === "building");
   const [pluginLoading, setPluginLoading] = useState(false);
   const [pluginConnecting, setPluginConnecting] = useState(pluginStatus === "connecting");
+  const [advancing, setAdvancing] = useState(false);
 
   const meetingLabel = new Date(meetingTime).toLocaleDateString("en-US", {
     month: "short",
@@ -209,6 +210,30 @@ export function BookingCard({
       }
     } finally {
       setPluginLoading(false);
+    }
+  }
+
+  async function handleAdvance() {
+    setAdvancing(true);
+    try {
+      const res = await fetch(`/api/booking/${id}/advance`, { method: "PATCH" });
+      if (res.ok) router.refresh();
+    } finally {
+      setAdvancing(false);
+    }
+  }
+
+  async function handleRetreat() {
+    setAdvancing(true);
+    try {
+      const res = await fetch(`/api/booking/${id}/advance`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ direction: "back" }),
+      });
+      if (res.ok) router.refresh();
+    } finally {
+      setAdvancing(false);
     }
   }
 
@@ -695,6 +720,37 @@ export function BookingCard({
         >
           view tracker
         </a>
+      )}
+
+      {/* step advance/retreat arrows */}
+      {currentStep && currentStep > 0 && (
+        <div className="mt-2 flex items-center justify-between rounded-md bg-gray-50 border border-gray-200 px-2 py-1">
+          <button
+            type="button"
+            onClick={handleRetreat}
+            disabled={advancing || !currentStep || currentStep <= 1}
+            className="rounded p-1 text-muted hover:text-primary hover:bg-primary/10 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+            title="move back one step"
+          >
+            <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+          <span className="text-[10px] font-medium text-muted">
+            step {currentStep} of 7
+          </span>
+          <button
+            type="button"
+            onClick={handleAdvance}
+            disabled={advancing || !currentStep || currentStep >= 7}
+            className="rounded p-1 text-muted hover:text-primary hover:bg-primary/10 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+            title="advance one step"
+          >
+            <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
+        </div>
       )}
     </div>
   );
