@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { ManifestRenderer } from "@/components/manifest-renderer";
+import type { PrototypeManifest } from "@slushie/prototype-kit/src/renderer/types";
 
 interface WalkthroughStep {
   target_component: string;
@@ -12,6 +14,9 @@ interface PreviewClientProps {
   nanoid: string;
   clientName: string;
   prototypeUrl: string | null;
+  prototypeId: string | null;
+  hasHtmlBundle: boolean;
+  manifest: unknown;
   walkthroughSteps: WalkthroughStep[];
 }
 
@@ -41,7 +46,7 @@ function WalkthroughOverlay({
 
       {/* tooltip card — positioned center bottom */}
       <div className="pointer-events-auto absolute bottom-8 left-1/2 w-full max-w-md -translate-x-1/2 px-4">
-        <div className="rounded-2xl bg-white p-5 shadow-2xl">
+        <div className="rounded-2xl bg-surface p-5 shadow-2xl">
           {/* step counter */}
           <div className="mb-3 flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -81,7 +86,7 @@ function WalkthroughOverlay({
                     ? "w-4 bg-primary"
                     : i < currentIndex
                     ? "w-1.5 bg-primary/40"
-                    : "w-1.5 bg-gray-300"
+                    : "w-1.5 bg-border"
                 }`}
               />
             ))}
@@ -95,7 +100,7 @@ function WalkthroughOverlay({
               className={`rounded-full px-4 py-1.5 text-xs font-semibold transition-colors ${
                 isFirst
                   ? "text-muted cursor-not-allowed"
-                  : "text-foreground hover:bg-gray-100"
+                  : "text-foreground hover:bg-white/5"
               }`}
             >
               back
@@ -117,6 +122,9 @@ export function PreviewClient({
   nanoid,
   clientName,
   prototypeUrl,
+  prototypeId,
+  hasHtmlBundle,
+  manifest,
   walkthroughSteps,
 }: PreviewClientProps) {
   const [showWalkthrough, setShowWalkthrough] = useState(walkthroughSteps.length > 0);
@@ -136,12 +144,16 @@ export function PreviewClient({
     setShowWalkthrough(false);
   }, []);
 
+  // prefer HTML bundle (new agentic builds) over manifest (legacy)
+  const useIframe = hasHtmlBundle && prototypeId;
+  const hasManifest = !useIframe && manifest && typeof manifest === "object" && (manifest as PrototypeManifest).pages?.length > 0;
+
   return (
     <div className="flex min-h-screen flex-col">
       {/* slushie branding frame — top bar */}
-      <div className="flex items-center justify-between border-b border-gray-200 bg-white px-4 py-2.5 shadow-sm">
+      <div className="flex items-center justify-between border-b border-border bg-surface px-4 py-2.5 shadow-sm">
         <div className="flex items-center gap-3">
-          <span className="text-lg font-extrabold text-primary">slushie</span>
+          <span className="text-lg font-extrabold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">slushie</span>
           <span className="text-xs text-muted">
             built for {clientName}
           </span>
@@ -164,15 +176,18 @@ export function PreviewClient({
 
       {/* prototype content area */}
       <div className="relative flex-1">
-        {prototypeUrl ? (
+        {useIframe ? (
           <iframe
-            src={prototypeUrl}
-            className="h-full w-full border-none"
-            title={`${clientName} prototype`}
-            sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+            src={`/api/prototype/${prototypeId}/html`}
+            className="w-full border-0"
+            style={{ minHeight: "calc(100vh - 80px)" }}
+            title="prototype preview"
+            sandbox="allow-scripts allow-same-origin"
           />
+        ) : hasManifest ? (
+          <ManifestRenderer manifest={manifest as PrototypeManifest} />
         ) : (
-          <div className="flex h-full items-center justify-center slushie-gradient">
+          <div className="flex h-full items-center justify-center bg-background">
             <div className="text-center">
               <p className="text-lg font-semibold text-foreground">
                 your prototype is being prepared.
@@ -184,8 +199,8 @@ export function PreviewClient({
           </div>
         )}
 
-        {/* walkthrough overlay */}
-        {showWalkthrough && walkthroughSteps.length > 0 && (
+        {/* walkthrough overlay — only for legacy manifest builds */}
+        {!useIframe && showWalkthrough && walkthroughSteps.length > 0 && (
           <WalkthroughOverlay
             steps={walkthroughSteps}
             currentIndex={walkthroughIndex}
@@ -197,7 +212,7 @@ export function PreviewClient({
       </div>
 
       {/* slushie branding frame — bottom bar */}
-      <div className="border-t border-gray-200 bg-white px-4 py-2">
+      <div className="border-t border-border bg-surface px-4 py-2">
         <div className="flex items-center justify-between">
           <p className="text-[10px] text-muted">
             this is a prototype. some features use simulated data.

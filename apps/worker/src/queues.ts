@@ -5,6 +5,7 @@ export const analystQueue = createEventQueue("analyst");
 export const builderQueue = createEventQueue("builder");
 export const reviewerQueue = createEventQueue("reviewer");
 export const postmortemQueue = createEventQueue("postmortem");
+export const pipelineQueue = createEventQueue("pipeline");
 export const notificationQueue = createEventQueue("notification");
 export const trackerQueue = createEventQueue("tracker");
 

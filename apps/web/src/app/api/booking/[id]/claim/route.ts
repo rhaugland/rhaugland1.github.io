@@ -1,9 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@slushie/db";
 import { auth } from "@/lib/auth";
-import { createEventQueue, createEvent } from "@slushie/events";
-
-const pipelineQueue = createEventQueue("pipeline");
 
 export async function POST(
   request: Request,
@@ -24,7 +21,6 @@ export async function POST(
 
   const booking = await prisma.booking.findUnique({
     where: { id },
-    include: { tracker: true },
   });
   if (!booking) {
     return NextResponse.json({ error: "booking not found" }, { status: 404 });
@@ -34,73 +30,11 @@ export async function POST(
     return NextResponse.json({ error: "already claimed" }, { status: 409 });
   }
 
-  // claim the booking
+  // claim the booking — just assigns the employee, does NOT trigger pipeline
   await prisma.booking.update({
     where: { id },
     data: { assigneeId: employeeId },
   });
-
-  // trigger the analyst → builder pipeline if not already running
-  if (booking.tracker && !booking.tracker.pipelineRunId) {
-    try {
-      // ensure booking has a client
-      let clientId = booking.clientId;
-      if (!clientId) {
-        const client = await prisma.client.create({
-          data: {
-            name: booking.businessName,
-            industry: "pending",
-            contactName: booking.name,
-            contactEmail: booking.email,
-          },
-        });
-        clientId = client.id;
-        await prisma.booking.update({
-          where: { id },
-          data: { clientId },
-        });
-      }
-
-      // create a call record with the booking description as transcript
-      const call = await prisma.call.create({
-        data: {
-          clientId,
-          startedAt: new Date(),
-          endedAt: new Date(),
-          transcript: booking.description,
-          coachingLog: [],
-        },
-      });
-
-      // create pipeline run
-      const pipelineRun = await prisma.pipelineRun.create({
-        data: {
-          clientId,
-          callId: call.id,
-          status: "RUNNING",
-        },
-      });
-
-      // link pipeline run to the booking's tracker
-      await prisma.tracker.update({
-        where: { id: booking.tracker.id },
-        data: { pipelineRunId: pipelineRun.id },
-      });
-
-      // dispatch call.ended event to trigger the analyst
-      await pipelineQueue.add(
-        "call.ended",
-        createEvent("call.ended", pipelineRun.id, {
-          callId: call.id,
-          clientId,
-          duration: 0,
-        })
-      );
-    } catch (err) {
-      console.error("failed to trigger pipeline for booking:", err);
-      // claim succeeded even if pipeline trigger fails
-    }
-  }
 
   return NextResponse.json({ ok: true });
 }

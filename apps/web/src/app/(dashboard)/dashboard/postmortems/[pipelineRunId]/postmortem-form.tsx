@@ -104,8 +104,8 @@ export function PostmortemForm({
 
       {/* NPS insights section */}
       {clientNps != null && (
-        <div className="mt-4 rounded-lg border border-gray-200 bg-white">
-          <div className="border-b border-gray-200 p-4">
+        <div className="mt-4 rounded-lg border border-border bg-surface">
+          <div className="border-b border-border p-4">
             <h3 className="text-sm font-bold text-foreground">NPS insights</h3>
             <p className="mt-0.5 text-xs text-muted">
               the client scored <span className="font-bold">{clientNps}/10</span>
@@ -138,14 +138,14 @@ export function PostmortemForm({
                   : "low"
               } score? communication quality, build accuracy, turnaround time, anything ${assigneeName ? assigneeName + " " : ""}could improve?`}
               rows={4}
-              className="mt-1 w-full rounded-lg border border-gray-200 bg-background px-3 py-2 text-sm placeholder:text-muted focus:border-secondary focus:outline-none focus:ring-1 focus:ring-secondary disabled:opacity-60"
+              className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm placeholder:text-muted focus:border-secondary focus:outline-none focus:ring-1 focus:ring-secondary disabled:opacity-60"
             />
           </div>
         </div>
       )}
 
       {/* submit postmortem button — triggers the skill update loop */}
-      <div className="mt-6 rounded-lg border border-gray-200 bg-white p-4">
+      <div className="mt-6 rounded-lg border border-border bg-surface p-4">
         {error && <p className="mb-3 text-sm text-red-600">{error}</p>}
 
         {submitted ? (

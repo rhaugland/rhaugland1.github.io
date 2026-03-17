@@ -10,8 +10,9 @@ import { reviewerPrompt } from "@slushie/agents";
 import { invokeClaudeCode } from "../claude";
 import { publishEvent } from "../publish";
 import { createAgentLogger } from "../logger";
+import fs from "node:fs/promises";
 import { getWorkspace, readWorkspaceFile, writeWorkspaceFile } from "./workspace";
-import { PHASE_TIMEOUTS } from "../queues";
+import { PHASE_TIMEOUTS, pipelineQueue } from "../queues";
 
 function getRedisConnection() {
   const url = process.env.REDIS_URL ?? "redis://localhost:6379";
@@ -36,6 +37,9 @@ export function createReviewerWorker() {
     {
       connection: getRedisConnection(),
       concurrency: 1,
+      settings: {
+        backoffStrategy: (attemptsMade: number) => [1000, 10000, 60000][attemptsMade - 1] ?? 60000,
+      },
     }
   );
 }
@@ -73,6 +77,14 @@ async function handlePrototypeReady(event: SlushieEvent): Promise<void> {
   const decisionLogPath = workspace.decisionLogPath(version);
   await writeWorkspaceFile(decisionLogPath, JSON.stringify(prototype.decisionLog, null, 2));
 
+  // check if gap meeting notes exist
+  const meetingNotesPath = `${workspace.root}/gap-meeting-notes.txt`;
+  let hasMeetingNotes = false;
+  try {
+    await fs.access(meetingNotesPath);
+    hasMeetingNotes = true;
+  } catch {}
+
   const prompt = reviewerPrompt({
     transcriptPath: workspace.transcriptPath,
     buildSpecPath: workspace.buildSpecPath(version),
@@ -80,6 +92,7 @@ async function handlePrototypeReady(event: SlushieEvent): Promise<void> {
     decisionLogPath,
     outputPath: workspace.gapReportPath(version),
     reviewVersion: version,
+    meetingNotesPath: hasMeetingNotes ? meetingNotesPath : undefined,
   });
 
   const result = await invokeClaudeCode({
@@ -108,14 +121,14 @@ async function handlePrototypeReady(event: SlushieEvent): Promise<void> {
   });
 
   // publish review.complete
-  await publishEvent(
-    createEvent("review.complete", event.pipelineRunId, {
+  const reviewCompleteEvent = createEvent("review.complete", event.pipelineRunId, {
       gapReportId: gapReport.id,
       version,
       coverageScore: report.coverageScore,
       gapCount: report.gaps?.length ?? 0,
-    })
-  );
+    });
+  await publishEvent(reviewCompleteEvent);
+  await pipelineQueue.add("review.complete", reviewCompleteEvent);
 
   log.info(
     {

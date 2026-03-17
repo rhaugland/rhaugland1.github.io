@@ -8,20 +8,22 @@ interface ReviewAlertProps {
   businessName: string;
   name: string;
   plan: string;
-  meetingTime: string;
+  meetingTime: string | null;
 }
 
 export function ReviewAlert({ id, businessName, name, plan, meetingTime }: ReviewAlertProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
 
-  const meetingLabel = new Date(meetingTime).toLocaleDateString("en-US", {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
+  const meetingLabel = meetingTime
+    ? new Date(meetingTime).toLocaleDateString("en-US", {
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      })
+    : null;
 
   async function handleReview(action: "confirm" | "release") {
     setLoading(true);
@@ -49,12 +51,14 @@ export function ReviewAlert({ id, businessName, name, plan, meetingTime }: Revie
           <p className="text-xs text-muted mt-0.5">
             {name} — {plan}
           </p>
-          <div className="mt-2 flex items-center gap-1.5 text-xs font-medium text-foreground">
-            <svg className="h-3.5 w-3.5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-            </svg>
-            new time: {meetingLabel}
-          </div>
+          {meetingLabel && (
+            <div className="mt-2 flex items-center gap-1.5 text-xs font-medium text-foreground">
+              <svg className="h-3.5 w-3.5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+              new time: {meetingLabel}
+            </div>
+          )}
         </div>
         <div className="flex shrink-0 gap-2">
           <button
@@ -69,7 +73,7 @@ export function ReviewAlert({ id, businessName, name, plan, meetingTime }: Revie
             type="button"
             onClick={() => handleReview("release")}
             disabled={loading}
-            className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-xs font-medium text-muted hover:text-foreground transition-colors disabled:opacity-50"
+            className="rounded-lg border border-border bg-surface px-4 py-2 text-xs font-medium text-muted hover:text-foreground transition-colors disabled:opacity-50"
           >
             release
           </button>

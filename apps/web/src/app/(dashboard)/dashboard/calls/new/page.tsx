@@ -283,7 +283,7 @@ export default function NewCallPage() {
         <p className="mt-1 text-sm text-muted">
           review the generated transcript. rework to generate a new one, or execute to run the pipeline.
         </p>
-        <div className="mt-4 max-h-[60vh] overflow-y-auto rounded-lg border border-gray-300 bg-white p-4">
+        <div className="mt-4 max-h-[60vh] overflow-y-auto rounded-lg border border-border bg-surface p-4">
           <pre className="whitespace-pre-wrap text-sm text-foreground font-mono leading-relaxed">{transcript}</pre>
         </div>
         {error && <p className="mt-3 text-sm text-primary">{error}</p>}
@@ -296,7 +296,7 @@ export default function NewCallPage() {
           </button>
           <button
             onClick={handleDemoCall}
-            className="rounded-lg border border-gray-300 px-4 py-2.5 text-sm font-semibold text-foreground transition hover:bg-gray-50"
+            className="rounded-lg border border-border px-4 py-2.5 text-sm font-semibold text-foreground transition hover:bg-surface-light"
           >
             rework
           </button>
@@ -327,14 +327,14 @@ export default function NewCallPage() {
           const isComplete = step > stepNum;
           return (
             <div key={label} className="flex items-center gap-2">
-              {i > 0 && <div className={`h-px w-6 ${isComplete ? "bg-primary" : "bg-gray-300"}`} />}
+              {i > 0 && <div className={`h-px w-6 ${isComplete ? "bg-primary" : "bg-border"}`} />}
               <div
                 className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold ${
                   isActive
                     ? "bg-primary text-white"
                     : isComplete
                       ? "bg-primary/20 text-primary"
-                      : "bg-gray-200 text-muted"
+                      : "bg-white/10 text-muted"
                 }`}
               >
                 {stepNum}

@@ -2,16 +2,37 @@ import { NextResponse } from "next/server";
 import { prisma } from "@slushie/db";
 import { auth } from "@/lib/auth";
 import { nanoid } from "nanoid";
+import { createEventQueue, createEvent } from "@slushie/events";
+
+const pipelineQueue = createEventQueue("pipeline");
 
 const BOOKING_STEPS = [
-  { step: 1, label: "meeting confirmed", subtitle: "your blend is scheduled. we'll see you there." },
-  { step: 2, label: "meeting", subtitle: "we're on the call. workflow discovery in progress." },
-  { step: 3, label: "slushie build review", subtitle: "our team is reviewing the build for quality." },
-  { step: 4, label: "client build approval", subtitle: "your turn. take a look and let us know." },
-  { step: 5, label: "plug-in", subtitle: "connecting to your tools. almost there." },
-  { step: 6, label: "billing", subtitle: "invoice sent. simple and transparent." },
-  { step: 7, label: "satisfaction survey", subtitle: "how'd we do? we want to keep getting better." },
+  { step: 1, label: "intake build", subtitle: "we're already building your first prototype." },
+  { step: 2, label: "schedule discovery", subtitle: "your rep will reach out to schedule a discovery call." },
+  { step: 3, label: "discovery meeting", subtitle: "let's walk through your workflow together." },
+  { step: 4, label: "discovery build", subtitle: "building an improved version based on our conversation." },
+  { step: 5, label: "client build approval", subtitle: "your turn. take a look and let us know." },
+  { step: 6, label: "plug-in", subtitle: "connecting to your tools. almost there." },
+  { step: 7, label: "billing", subtitle: "invoice sent. simple and transparent." },
+  { step: 8, label: "satisfaction survey", subtitle: "how'd we do? we want to keep getting better." },
 ];
+
+const DEMO_DESCRIPTION = `I run a property management company called Bennett Properties. We manage 47 rental units across 3 buildings in downtown Portland.
+
+Right now our entire operation runs through Google Sheets. I have one master sheet that tracks every unit — tenant name, lease dates, monthly rent, maintenance requests, payment status. Every month I manually go through each row, check if rent came in via our Stripe account, mark it paid or overdue, then calculate our revenue and send a summary to my business partner.
+
+Maintenance requests come in through email or text. I copy-paste them into another tab of the same spreadsheet, assign them to our handyman, and track completion manually. I often lose track of requests or forget to follow up.
+
+What I need:
+1. A property management dashboard that pulls data from our Google Sheets master tracker and displays it beautifully — unit status, occupancy rates, revenue by building, upcoming lease renewals
+2. Integration with Stripe so I can see which tenants have paid, which are overdue, and total revenue in real-time without manually checking
+3. A maintenance request system that connects to the Google Sheet — new requests show up in the dashboard, I can assign them, track progress, and tenants get notified when complete
+4. Monthly reports auto-generated from the sheet data — revenue breakdown, occupancy trends, maintenance costs
+5. A tenant portal where renters can see their lease info, submit maintenance requests, and see payment history
+
+tools/tech stack: google sheets, stripe
+
+I need this to actually connect to our Google Sheet and Stripe account. The sheet has columns: Unit Number, Building, Tenant Name, Tenant Email, Lease Start, Lease End, Monthly Rent, Payment Status, Last Payment Date, Notes. Right now I have 47 rows of active tenants.`;
 
 export async function POST() {
   const session = await auth();
@@ -33,45 +54,37 @@ export async function POST() {
     });
   }
 
-  // create a dummy client
+  // create client
   const client = await prisma.client.create({
     data: {
-      name: "Acme Corp",
-      industry: "SaaS",
-      contactName: "Jane Smith",
-      contactEmail: "jane@acmecorp.com",
+      name: "Bennett Properties",
+      industry: "Property Management",
+      contactName: "Marcus Bennett",
+      contactEmail: "marcus@bennettproperties.com",
     },
   });
 
-  // schedule meeting for right now (today) so start call button appears
-  const meetingTime = new Date();
-
-  // create the booking — assigned to the current user
+  // create the booking — assigned to the current user, no meetingTime
   const booking = await prisma.booking.create({
     data: {
-      name: "Jane Smith",
-      email: "jane@acmecorp.com",
-      businessName: "Acme Corp",
-      plan: "DOUBLE_BLEND",
-      description:
-        "We use HubSpot for CRM, Slack for comms, and Google Sheets for tracking orders. " +
-        "Every day our sales team manually copies deal data from HubSpot into a Google Sheet, " +
-        "then posts a summary in Slack. This takes about 2 hours daily. We want an automated " +
-        "pipeline that syncs HubSpot deals to a dashboard and posts daily summaries to Slack.",
-      meetingTime,
+      name: "Marcus Bennett",
+      email: "marcus@bennettproperties.com",
+      businessName: "Bennett Properties",
+      plan: "TRIPLE_FREEZE",
+      description: DEMO_DESCRIPTION,
       calendarEventId: `demo-event-${nanoid(10)}`,
       clientId: client.id,
       assigneeId: employee.id,
     },
   });
 
-  // create a call record (transcript = booking description, like the claim flow)
+  // create a call record (transcript = booking description)
   const call = await prisma.call.create({
     data: {
       clientId: client.id,
       startedAt: new Date(),
       endedAt: new Date(),
-      transcript: booking.description,
+      transcript: DEMO_DESCRIPTION,
       coachingLog: [],
     },
   });
@@ -85,15 +98,15 @@ export async function POST() {
     },
   });
 
-  // create tracker at step 2 (meeting) with pipeline run linked
+  // create tracker at step 1 (active — intake build in progress)
   const slug = nanoid(21);
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + 30);
 
   const steps = BOOKING_STEPS.map((s, i) => ({
     ...s,
-    status: i === 0 ? "done" : i === 1 ? "active" : "pending",
-    completedAt: i === 0 ? new Date().toISOString() : null,
+    status: i === 0 ? "active" : "pending",
+    completedAt: null as string | null,
   }));
 
   await prisma.tracker.create({
@@ -101,17 +114,27 @@ export async function POST() {
       bookingId: booking.id,
       pipelineRunId: pipelineRun.id,
       slug,
-      currentStep: 2,
+      currentStep: 1,
       steps,
       expiresAt,
     },
   });
+
+  // dispatch call.ended event to trigger the analyst → builder pipeline
+  await pipelineQueue.add(
+    "call.ended",
+    createEvent("call.ended", pipelineRun.id, {
+      callId: call.id,
+      clientId: client.id,
+      duration: 0,
+    })
+  );
 
   return NextResponse.json({
     ok: true,
     bookingId: booking.id,
     trackingSlug: slug,
     pipelineRunId: pipelineRun.id,
-    meetingTime: meetingTime.toISOString(),
+    description: "Bennett Properties — property management with Google Sheets + Stripe integration",
   });
 }

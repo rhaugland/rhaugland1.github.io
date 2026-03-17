@@ -3,12 +3,12 @@ import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { BookingCard } from "./booking-card";
 import { ReviewAlert } from "./review-alert";
-import { SeedButton } from "./seed-button";
 
 const BOOKING_STEP_LABELS = [
-  "meeting confirmed",
-  "meeting",
-  "slushie build review",
+  "intake build",
+  "schedule discovery",
+  "discovery meeting",
+  "discovery build",
   "client build approval",
   "plug-in",
   "billing",
@@ -22,12 +22,21 @@ export default async function DashboardPage() {
 
   const userEmail = session.user?.email ?? "";
 
-  // find the employee record matching the logged-in user
-  const currentEmployee = await prisma.employee.findFirst({
+  // find or create the employee record matching the logged-in user
+  let currentEmployee = await prisma.employee.findFirst({
     where: {
       email: { equals: userEmail, mode: "insensitive" },
     },
   });
+
+  if (!currentEmployee && userEmail) {
+    currentEmployee = await prisma.employee.create({
+      data: {
+        name: session.user?.name ?? userEmail.split("@")[0],
+        email: userEmail,
+      },
+    });
+  }
 
   const PLAN_WORKFLOW_COUNT: Record<string, number> = {
     SINGLE_SCOOP: 1,
@@ -37,7 +46,7 @@ export default async function DashboardPage() {
 
   const bookings = await prisma.booking.findMany({
     where: { status: { in: ["CONFIRMED", "COMPLETED"] } },
-    orderBy: { meetingTime: "asc" },
+    orderBy: { createdAt: "asc" },
     include: {
       tracker: {
         select: {
@@ -52,10 +61,15 @@ export default async function DashboardPage() {
           paidAt: true,
           npsScore: true,
           npsCompletedAt: true,
+          discoveryEmailStatus: true,
+          discoveryEmailSentAt: true,
           pipelineRun: {
             select: {
               id: true,
               status: true,
+              startedAt: true,
+              gapMeetingStartedAt: true,
+              gapMeetingCompletedAt: true,
               postmortem: {
                 select: {
                   id: true,
@@ -67,9 +81,9 @@ export default async function DashboardPage() {
                   analysis: {
                     select: {
                       buildSpecs: {
-                        orderBy: { version: "desc" },
-                        take: 1,
+                        orderBy: { version: "asc" },
                         select: {
+                          version: true,
                           prototypes: {
                             orderBy: { version: "desc" },
                             take: 1,
@@ -121,34 +135,7 @@ export default async function DashboardPage() {
     TRIPLE_FREEZE: "triple freeze",
   };
 
-  // auto-advance: move step 1 bookings to step 2 if meeting day has arrived
-  const today = new Date().toDateString();
-  for (const booking of bookings) {
-    if (
-      booking.tracker &&
-      booking.tracker.currentStep === 1 &&
-      booking.assigneeId &&
-      booking.meetingTime.toDateString() === today
-    ) {
-      const steps = booking.tracker.steps as Array<{
-        step: number; label: string; subtitle: string; status: string; completedAt: string | null;
-      }>;
-      const updatedSteps = steps.map((s, i) => ({
-        ...s,
-        status: i === 0 ? "done" : i === 1 ? "active" : s.status,
-        completedAt: i === 0 && s.status !== "done" ? new Date().toISOString() : s.completedAt,
-      }));
-
-      await prisma.tracker.update({
-        where: { id: booking.tracker.id },
-        data: { currentStep: 2, steps: updatedSteps },
-      });
-
-      // update in-memory so the page renders correctly
-      booking.tracker.currentStep = 2;
-      (booking.tracker as { steps: unknown }).steps = updatedSteps;
-    }
-  }
+  // auto-advance is handled by the claim route — no need for meeting-day check
 
   // filter: show my claimed bookings + unclaimed. hide other people's claimed bookings.
   const reviewBookings = currentEmployee
@@ -164,29 +151,65 @@ export default async function DashboardPage() {
   function getBuildStatus(booking: (typeof bookings)[number]): {
     status: "none" | "analyzing" | "building" | "ready";
     previewUrl?: string;
+    v1PreviewUrl?: string;
+    v2Status?: "awaiting-meeting" | "in-meeting" | "analyzing" | "gap-report" | "building" | "ready" | null;
+    v2PreviewUrl?: string;
+    latestVersion?: number;
   } {
     const run = booking.tracker?.pipelineRun;
     if (!run) return { status: "none" };
 
-    const prototype = run.call?.analysis?.buildSpecs?.[0]?.prototypes?.[0];
-    if (prototype?.previewUrl) {
-      return { status: "ready", previewUrl: prototype.previewUrl };
+    const specs = run.call?.analysis?.buildSpecs ?? [];
+    const allProtos = specs.flatMap((s) => s.prototypes);
+    const v1Proto = allProtos.find((p) => p.version === 1);
+    const latestProto = allProtos.length > 0 ? allProtos[allProtos.length - 1] : null;
+    const latestVersion = latestProto?.version ?? 0;
+
+    const previewUrl = latestProto ? `/dashboard/preview/${run.id}` : undefined;
+    const v1PreviewUrl = v1Proto ? `/dashboard/preview/${run.id}` : undefined;
+
+    // if pipeline completed, everything is ready
+    if (run.status === "COMPLETED") {
+      return { status: "ready", previewUrl, v1PreviewUrl, v2Status: latestVersion >= 2 ? "ready" : null, v2PreviewUrl: previewUrl, latestVersion };
     }
 
-    const hasBuildSpec = (run.call?.analysis?.buildSpecs?.length ?? 0) > 0;
+    // v1 exists — figure out v2 progress
+    if (v1Proto) {
+      let v2Status: "awaiting-meeting" | "in-meeting" | "analyzing" | "gap-report" | "building" | "ready" | null = null;
+
+      if (latestVersion >= 2) {
+        v2Status = "ready";
+      } else if (specs.length >= 2) {
+        v2Status = "building";
+      } else if (!run.gapMeetingStartedAt) {
+        // v1 is ready but no gap meeting started yet
+        v2Status = "awaiting-meeting";
+      } else if (run.gapMeetingStartedAt && !run.gapMeetingCompletedAt) {
+        // gap meeting in progress
+        v2Status = "in-meeting";
+      } else if (run.gapMeetingCompletedAt && specs.length === 1) {
+        // meeting done, reviewer/analyst working
+        v2Status = "gap-report";
+      }
+
+      return { status: "ready", previewUrl, v1PreviewUrl, v2Status, v2PreviewUrl: previewUrl, latestVersion };
+    }
+
+    // no prototype yet
+    const hasBuildSpec = specs.length > 0;
     if (hasBuildSpec) return { status: "building" };
 
     return { status: "analyzing" };
   }
 
-  // group visible bookings by step — COMPLETED bookings go to step 8 (postmortem)
+  // group visible bookings by step — COMPLETED bookings go to step 9 (postmortem)
   const columns = BOOKING_STEP_LABELS.map((label, i) => {
     const step = i + 1;
     return {
       step,
       label,
       bookings: visibleBookings.filter((b) => {
-        if (step === 8) return b.status === "COMPLETED";
+        if (step === 9) return b.status === "COMPLETED";
         return b.status !== "COMPLETED" && (b.tracker?.currentStep ?? 0) === step;
       }),
     };
@@ -228,7 +251,7 @@ export default async function DashboardPage() {
                 businessName={booking.businessName}
                 name={booking.name}
                 plan={planLabels[booking.plan] ?? booking.plan}
-                meetingTime={booking.meetingTime.toISOString()}
+                meetingTime={booking.meetingTime?.toISOString() ?? null}
               />
             ))}
           </div>
@@ -239,29 +262,28 @@ export default async function DashboardPage() {
       <div>
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h1 className="text-2xl font-extrabold text-foreground">meetings</h1>
+            <h1 className="text-2xl font-extrabold text-foreground">slushie machine</h1>
             <p className="mt-1 text-sm text-muted">
               {totalVisible > 0
                 ? "your bookings and unclaimed work, organized by step"
                 : "no bookings yet"}
             </p>
           </div>
-          <SeedButton />
         </div>
 
         <div className="flex gap-4 overflow-x-auto pb-4">
           {columns.map((col) => (
             <div
               key={col.step}
-              className="flex-shrink-0 w-72 rounded-xl bg-gray-50 border border-gray-200"
+              className="flex-shrink-0 w-72 rounded-xl bg-surface border border-border"
             >
               {/* column header */}
-              <div className="sticky top-0 px-3 py-3 border-b border-gray-200 bg-gray-50 rounded-t-xl">
+              <div className="sticky top-0 px-3 py-3 border-b border-border bg-surface rounded-t-xl">
                 <div className="flex items-center justify-between">
                   <p className="text-xs font-bold text-foreground">
                     {col.step}. {col.label}
                   </p>
-                  <span className="rounded-full bg-gray-200 px-2 py-0.5 text-[10px] font-bold text-muted">
+                  <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-bold text-muted">
                     {col.bookings.length}
                   </span>
                 </div>
@@ -283,13 +305,18 @@ export default async function DashboardPage() {
                       name={booking.name}
                       businessName={booking.businessName}
                       plan={planLabels[booking.plan] ?? booking.plan}
-                      meetingTime={booking.meetingTime.toISOString()}
+                      meetingTime={booking.meetingTime?.toISOString() ?? null}
                       trackingSlug={booking.tracker?.slug ?? null}
                       assignee={booking.assignee}
                       employees={employees.map((e) => ({ id: e.id, name: e.name }))}
                       employeeAvgNps={employeeAvgNps}
                       buildStatus={build.status}
                       buildPreviewUrl={build.previewUrl}
+                      v1PreviewUrl={build.v1PreviewUrl}
+                      v2Status={build.v2Status ?? null}
+                      v2PreviewUrl={build.v2PreviewUrl}
+                      latestVersion={build.latestVersion ?? 0}
+                      pipelineStartedAt={booking.tracker?.pipelineRun?.startedAt?.toISOString() ?? null}
                       pipelineRunId={booking.tracker?.pipelineRun?.id ?? null}
                       currentStep={booking.tracker?.currentStep ?? 0}
                       clientFeedback={booking.tracker?.clientFeedback ?? null}
@@ -320,6 +347,8 @@ export default async function DashboardPage() {
                           ? `${booking.workflowNumber} of ${PLAN_WORKFLOW_COUNT[booking.plan]}`
                           : null
                       }
+                      discoveryEmailStatus={booking.tracker?.discoveryEmailStatus ?? null}
+                      discoveryEmailSentAt={booking.tracker?.discoveryEmailSentAt?.toISOString() ?? null}
                     />
                   );
                 })}

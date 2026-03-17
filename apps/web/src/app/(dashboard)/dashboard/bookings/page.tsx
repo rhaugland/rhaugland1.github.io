@@ -61,7 +61,7 @@ export default async function BookingsPage() {
                     </span>
                   </td>
                   <td className="py-3 pr-4 text-foreground">
-                    {booking.meetingTime.toLocaleDateString("en-US", {
+                    {booking.meetingTime?.toLocaleDateString("en-US", {
                       month: "short",
                       day: "numeric",
                       hour: "numeric",

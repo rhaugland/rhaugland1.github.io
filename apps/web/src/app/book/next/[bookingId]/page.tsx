@@ -55,10 +55,10 @@ export default async function NextWorkflowPage({
 
   if (existingNext?.tracker?.slug) {
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center slushie-gradient px-4">
+      <main className="flex min-h-screen flex-col items-center justify-center bg-background px-4">
         <div className="w-full max-w-md text-center">
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-primary">slushie</h1>
-          <div className="mt-6 rounded-2xl bg-white/80 shadow-lg backdrop-blur-sm p-6">
+          <h1 className="text-2xl sm:text-3xl font-extrabold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">slushie</h1>
+          <div className="mt-6 rounded-2xl bg-surface shadow-lg backdrop-blur-sm p-6">
             <p className="text-sm font-bold text-foreground">workflow already scheduled!</p>
             <p className="mt-2 text-xs text-muted">
               your next workflow is already booked. track its progress below.
@@ -77,10 +77,10 @@ export default async function NextWorkflowPage({
 
   if (nextWorkflow > totalWorkflows) {
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center slushie-gradient px-4">
+      <main className="flex min-h-screen flex-col items-center justify-center bg-background px-4">
         <div className="w-full max-w-md text-center">
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-primary">slushie</h1>
-          <div className="mt-6 rounded-2xl bg-white/80 shadow-lg backdrop-blur-sm p-6">
+          <h1 className="text-2xl sm:text-3xl font-extrabold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">slushie</h1>
+          <div className="mt-6 rounded-2xl bg-surface shadow-lg backdrop-blur-sm p-6">
             <p className="text-sm font-bold text-foreground">all workflows complete!</p>
             <p className="mt-2 text-xs text-muted">
               you've used all {totalWorkflows} workflows included in your {PLAN_LABELS[booking.plan]} plan. thanks for choosing slushie!
@@ -93,10 +93,10 @@ export default async function NextWorkflowPage({
 
   if (booking.status !== "COMPLETED") {
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center slushie-gradient px-4">
+      <main className="flex min-h-screen flex-col items-center justify-center bg-background px-4">
         <div className="w-full max-w-md text-center">
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-primary">slushie</h1>
-          <div className="mt-6 rounded-2xl bg-white/80 shadow-lg backdrop-blur-sm p-6">
+          <h1 className="text-2xl sm:text-3xl font-extrabold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">slushie</h1>
+          <div className="mt-6 rounded-2xl bg-surface shadow-lg backdrop-blur-sm p-6">
             <p className="text-sm font-bold text-foreground">not quite ready yet</p>
             <p className="mt-2 text-xs text-muted">
               your current workflow needs to be completed before scheduling the next one.

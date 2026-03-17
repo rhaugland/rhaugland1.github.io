@@ -48,11 +48,11 @@ export function ClientsView({ clients, industries, owners }: ClientsViewProps) {
       </div>
 
       {/* tabs */}
-      <div className="mb-6 flex gap-1 rounded-lg border border-gray-200 bg-gray-50 p-1">
+      <div className="mb-6 flex gap-1 rounded-lg border border-border bg-surface-light p-1">
         <button
           onClick={() => setTab("actions")}
           className={`flex-1 rounded-md px-4 py-2 text-sm font-medium transition ${
-            tab === "actions" ? "bg-white text-foreground shadow-sm" : "text-muted hover:text-foreground"
+            tab === "actions" ? "bg-surface text-foreground shadow-sm" : "text-muted hover:text-foreground"
           }`}
         >
           client actions
@@ -60,7 +60,7 @@ export function ClientsView({ clients, industries, owners }: ClientsViewProps) {
         <button
           onClick={() => setTab("addressbook")}
           className={`flex-1 rounded-md px-4 py-2 text-sm font-medium transition ${
-            tab === "addressbook" ? "bg-white text-foreground shadow-sm" : "text-muted hover:text-foreground"
+            tab === "addressbook" ? "bg-surface text-foreground shadow-sm" : "text-muted hover:text-foreground"
           }`}
         >
           address book
@@ -125,7 +125,7 @@ function ActionsTab({
         <select
           value={industryFilter}
           onChange={(e) => setIndustryFilter(e.target.value)}
-          className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-foreground focus:border-primary focus:outline-none"
+          className="rounded-lg border border-border px-3 py-1.5 text-sm text-foreground focus:border-primary focus:outline-none"
         >
           <option value="">all industries</option>
           {industries.map((ind) => (
@@ -136,7 +136,7 @@ function ActionsTab({
         <select
           value={ownerFilter}
           onChange={(e) => setOwnerFilter(e.target.value)}
-          className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-foreground focus:border-primary focus:outline-none"
+          className="rounded-lg border border-border px-3 py-1.5 text-sm text-foreground focus:border-primary focus:outline-none"
         >
           <option value="">all owners</option>
           {owners.map((o) => (
@@ -147,7 +147,7 @@ function ActionsTab({
         <select
           value={stageFilter}
           onChange={(e) => setStageFilter(e.target.value)}
-          className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-foreground focus:border-primary focus:outline-none"
+          className="rounded-lg border border-border px-3 py-1.5 text-sm text-foreground focus:border-primary focus:outline-none"
         >
           <option value="">all stages</option>
           <option value="WORKING">working</option>
@@ -178,7 +178,7 @@ function ActionsTab({
             return (
               <div
                 key={client.id}
-                className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm transition hover:shadow-md"
+                className="rounded-lg border border-border bg-surface p-4 shadow-sm transition hover:shadow-md"
               >
                 <div className="mb-3 flex items-start justify-between">
                   <h3 className="text-lg font-bold text-foreground">{client.name}</h3>
@@ -224,7 +224,7 @@ function ActionsTab({
                         value={editOwner}
                         onChange={(e) => setEditOwner(e.target.value)}
                         placeholder="assign owner"
-                        className="w-32 rounded border border-gray-300 px-2 py-0.5 text-right text-sm focus:border-primary focus:outline-none"
+                        className="w-32 rounded border border-border px-2 py-0.5 text-right text-sm focus:border-primary focus:outline-none"
                       />
                     ) : (
                       <span className="font-medium text-foreground">
@@ -238,13 +238,13 @@ function ActionsTab({
                   </div>
                 </div>
 
-                <div className="mt-3 border-t border-gray-100 pt-3">
+                <div className="mt-3 border-t border-border pt-3">
                   {isEditing ? (
                     <div className="flex items-center justify-between">
                       <select
                         value={editStage}
                         onChange={(e) => setEditStage(e.target.value as "WORKING" | "DONE")}
-                        className="rounded border border-gray-300 px-2 py-1 text-xs focus:border-primary focus:outline-none"
+                        className="rounded border border-border px-2 py-1 text-xs focus:border-primary focus:outline-none"
                       >
                         <option value="WORKING">working</option>
                         <option value="DONE">done</option>
@@ -332,7 +332,7 @@ function AddressBookTab({ clients }: { clients: ClientData[] }) {
         <select
           value={sort}
           onChange={(e) => setSort(e.target.value as SortField)}
-          className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-foreground focus:border-primary focus:outline-none"
+          className="rounded-lg border border-border px-3 py-1.5 text-sm text-foreground focus:border-primary focus:outline-none"
         >
           <option value="name-az">name A → Z</option>
           <option value="name-za">name Z → A</option>
@@ -344,9 +344,9 @@ function AddressBookTab({ clients }: { clients: ClientData[] }) {
       {sorted.length === 0 ? (
         <p className="text-sm text-muted">no clients yet. start a call to create one.</p>
       ) : (
-        <div className="overflow-hidden rounded-lg border border-gray-200">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+        <div className="overflow-hidden rounded-lg border border-border">
+          <table className="min-w-full divide-y divide-border">
+            <thead className="bg-surface-light">
               <tr>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-muted">contact name</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-muted">company</th>
@@ -355,9 +355,9 @@ function AddressBookTab({ clients }: { clients: ClientData[] }) {
                 <th className="px-4 py-3 text-left text-xs font-semibold text-muted">last contact</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200 bg-white">
+            <tbody className="divide-y divide-border bg-surface">
               {sorted.map((client) => (
-                <tr key={client.id} className="hover:bg-gray-50 transition">
+                <tr key={client.id} className="hover:bg-surface-light transition">
                   <td className="px-4 py-3 text-sm font-medium text-foreground">
                     {client.contactName || <span className="text-muted italic">--</span>}
                   </td>

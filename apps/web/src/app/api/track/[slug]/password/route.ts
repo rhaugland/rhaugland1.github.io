@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@slushie/db";
 import bcrypt from "bcryptjs";
 import { verifyTrackerAccess } from "@/lib/tracker-auth";
+import { sendPasswordUpdated } from "@/lib/email";
 
 export async function POST(
   request: Request,
@@ -51,6 +52,21 @@ export async function POST(
     where: { id: tracker.id },
     data: { passwordHash: newHash, mustChangePassword: false },
   });
+
+  // send email with updated credentials + tracker link
+  const booking = await prisma.booking.findFirst({
+    where: { tracker: { id: tracker.id } },
+    select: { name: true, email: true },
+  });
+
+  if (booking) {
+    sendPasswordUpdated({
+      to: booking.email,
+      name: booking.name,
+      slug,
+      newPassword,
+    }).catch((err) => console.error("[email] password updated failed:", err));
+  }
 
   return NextResponse.json({ ok: true });
 }

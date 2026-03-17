@@ -38,6 +38,10 @@ interface TrackerClientProps {
   planPrice: string;
   hasFreeAddon: boolean;
   surveyCompleted: boolean;
+  buildDescription: string | null;
+  techStack: string[] | null;
+  pipelineStatus: string | null;
+  pipelineStartedAt: string | null;
 }
 
 export function TrackerClient({
@@ -56,6 +60,10 @@ export function TrackerClient({
   planPrice,
   hasFreeAddon,
   surveyCompleted: initialSurveyCompleted,
+  buildDescription,
+  techStack,
+  pipelineStatus,
+  pipelineStartedAt,
 }: TrackerClientProps) {
   const [steps, setSteps] = useState<TrackerStep[]>(initialSteps);
   const [currentStep, setCurrentStep] = useState(initialCurrentStep);
@@ -73,9 +81,11 @@ export function TrackerClient({
   const [revisionText, setRevisionText] = useState("");
   const [revisionStatus, setRevisionStatus] = useState(initialRevisionStatus);
   const [revisionSent, setRevisionSent] = useState(initialRevisionStatus === "revision_received");
-  const [credentials, setCredentials] = useState<Array<{ service: string; value: string }>>([
-    { service: "", value: "" },
-  ]);
+  const [credentials, setCredentials] = useState<Array<{ service: string; value: string }>>(
+    techStack && techStack.length > 0
+      ? techStack.map((t) => ({ service: t, value: "" }))
+      : [{ service: "", value: "" }]
+  );
   const [credentialsSent, setCredentialsSent] = useState(
     initialPluginStatus === "credentials_received" || initialPluginStatus === "connecting" || initialPluginStatus === "connected"
   );
@@ -86,6 +96,22 @@ export function TrackerClient({
   const [npsFeedback, setNpsFeedback] = useState("");
   const [surveyCompleted, setSurveyCompleted] = useState(initialSurveyCompleted);
   const [earnedAddon, setEarnedAddon] = useState(false);
+  const [buildElapsed, setBuildElapsed] = useState("");
+
+  // build elapsed timer
+  useEffect(() => {
+    if (!pipelineStartedAt || pipelineStatus !== "RUNNING") return;
+    const started = new Date(pipelineStartedAt).getTime();
+    function tick() {
+      const elapsed = Date.now() - started;
+      const mins = Math.floor(elapsed / 60000);
+      const secs = Math.floor((elapsed % 60000) / 1000);
+      setBuildElapsed(`${mins}:${secs.toString().padStart(2, "0")}`);
+    }
+    tick();
+    const interval = setInterval(tick, 1000);
+    return () => clearInterval(interval);
+  }, [pipelineStartedAt, pipelineStatus]);
 
   useEffect(() => {
     const eventSource = new EventSource(`/api/track/${slug}/events`);
@@ -100,8 +126,8 @@ export function TrackerClient({
         if (data.type === "tracker.update" && data.steps) {
           setSteps(data.steps);
           setCurrentStep(data.step);
-          // if we moved past step 4, clear revision state
-          if (data.step > 4) {
+          // if we moved past step 5 (client approval), clear revision state
+          if (data.step > 5) {
             setRevisionSent(false);
             setRevisionStatus(null);
           }
@@ -381,22 +407,19 @@ export function TrackerClient({
     : null;
 
   // find the active step to highlight in detail card
-  // for bookings at step 1 (meeting confirmed but not yet happened), show step 1 info
-  const waitingForMeeting = bookingId && currentStep <= 1;
-  const activeStep = waitingForMeeting
-    ? steps[0]
-    : (steps.find((s) => s.status === "active") ?? steps.find((s) => s.status === "pending") ?? null);
+  const activeStep = steps.find((s) => s.status === "active") ?? steps.find((s) => s.status === "pending") ?? null;
+  const waitingForMeeting = false; // no longer wait — build starts immediately
 
   const isMeetingDay = meetingTime
     ? new Date(meetingTime).toDateString() === new Date().toDateString()
     : true;
 
   return (
-    <main className="flex min-h-screen flex-col items-center slushie-gradient px-4 py-10 sm:justify-center sm:py-0">
+    <main className="flex min-h-screen flex-col items-center bg-background px-4 py-10 sm:justify-center sm:py-0">
       <div className="w-full max-w-2xl">
         {/* header */}
         <div className="mb-8 text-center">
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-primary">slushie</h1>
+          <h1 className="text-2xl sm:text-3xl font-extrabold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">slushie</h1>
           <p className="mt-2 text-foreground text-sm">
             {isComplete
               ? `${clientName}, your tool is ready.`
@@ -408,11 +431,11 @@ export function TrackerClient({
         </div>
 
         {/* domino's-style progress bar */}
-        <div className="rounded-2xl bg-white/80 shadow-lg backdrop-blur-sm overflow-hidden">
+        <div className="rounded-2xl bg-surface border border-border shadow-lg overflow-hidden">
           {/* progress bar */}
           <div className="relative px-4 sm:px-6 pt-6 pb-2">
             {/* track */}
-            <div className="relative h-2 rounded-full bg-gray-200 overflow-hidden">
+            <div className="relative h-2 rounded-full bg-white/10 overflow-hidden">
               <div
                 className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-primary to-secondary transition-all duration-700 ease-out"
                 style={{ width: `${progressPercent}%` }}
@@ -425,10 +448,10 @@ export function TrackerClient({
                   <div
                     className={`h-2 w-2 rounded-full transition-all duration-500 ${
                       step.status === "done"
-                        ? "bg-white ring-2 ring-primary scale-100"
+                        ? "bg-primary ring-2 ring-primary/50 scale-100"
                         : step.status === "active"
                         ? "bg-primary ring-2 ring-primary/30 scale-150"
-                        : "bg-gray-300"
+                        : "bg-white/20"
                     }`}
                   />
                 </div>
@@ -451,7 +474,7 @@ export function TrackerClient({
                         ? "bg-gradient-to-br from-primary to-secondary text-white"
                         : step.status === "active"
                         ? "bg-primary text-white ring-4 ring-primary/20"
-                        : "bg-gray-200 text-muted"
+                        : "bg-white/10 text-muted"
                     }`}
                   >
                     {step.status === "done" ? (
@@ -467,8 +490,8 @@ export function TrackerClient({
                       step.status === "active"
                         ? "text-primary"
                         : step.status === "done"
-                        ? "text-foreground"
-                        : "text-muted/60"
+                        ? "text-foreground/80"
+                        : "text-muted/40"
                     }`}
                   >
                     {step.label}
@@ -479,9 +502,69 @@ export function TrackerClient({
           </div>
         </div>
 
+        {/* build context card — shows what we're building */}
+        {buildDescription && currentStep <= 4 && !isComplete && (
+          <div className="mt-4 rounded-xl bg-surface border border-border p-4 sm:p-5">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="h-6 w-6 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center">
+                <svg className="h-3 w-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+              </div>
+              <p className="text-sm font-bold text-foreground">what we're building</p>
+            </div>
+
+            <p className="text-xs text-muted leading-relaxed whitespace-pre-line">
+              {buildDescription.replace(/\n\ntools\/tech stack:.+/i, "")}
+            </p>
+
+            {techStack && techStack.length > 0 && (
+              <div className="mt-3 pt-3 border-t border-border">
+                <p className="text-[10px] font-medium text-muted mb-2">tech stack</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {techStack.map((tool) => (
+                    <span
+                      key={tool}
+                      className="rounded-full bg-gradient-to-r from-primary/10 to-secondary/10 border border-primary/20 px-2.5 py-1 text-[10px] font-medium text-foreground"
+                    >
+                      {tool}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {pipelineStatus === "RUNNING" && !buildPreviewUrl && (
+              <div className="mt-3 flex items-center justify-between rounded-md bg-amber-500/10 border border-amber-500/20 px-2 py-1.5">
+                <div className="flex items-center gap-1.5">
+                  <div className="h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
+                  <span className="text-[10px] font-medium text-amber-400">build in progress...</span>
+                </div>
+                {buildElapsed && (
+                  <span className="text-[10px] font-mono text-amber-400/70">{buildElapsed}</span>
+                )}
+              </div>
+            )}
+            {buildPreviewUrl && (
+              <a
+                href={buildPreviewUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-3 flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-primary to-secondary px-4 py-3 text-sm font-bold text-white shadow-md transition-all active:scale-[0.98] hover:shadow-lg"
+              >
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                </svg>
+                {currentStep > 4 ? "view updated build" : "view initial build"}
+              </a>
+            )}
+          </div>
+        )}
+
         {/* meeting info card — shown while waiting for meeting (step 1) */}
         {waitingForMeeting && !cancelled && (
-          <div className="mt-4 rounded-xl bg-white border border-gray-200 p-4 sm:p-5">
+          <div className="mt-4 rounded-xl bg-surface border border-border p-4 sm:p-5">
             <p className="text-sm font-bold text-foreground">meeting confirmed</p>
             <p className="text-xs text-muted mt-0.5">your blend is scheduled. we'll see you there.</p>
             {meetingLabel && (
@@ -495,7 +578,7 @@ export function TrackerClient({
 
         {/* active step detail card — shown for steps beyond the meeting */}
         {!isComplete && !waitingForMeeting && activeStep && (
-          <div className="mt-4 rounded-xl bg-white border border-gray-200 p-4 sm:p-5">
+          <div className="mt-4 rounded-xl bg-surface border border-border p-4 sm:p-5">
             <div className="flex items-center gap-2 mb-2">
               <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
               <p className="text-xs font-medium text-primary">step {activeStep.step} of {totalSteps}</p>
@@ -503,8 +586,8 @@ export function TrackerClient({
             <p className="text-sm font-bold text-foreground">{activeStep.label}</p>
             <p className="text-xs text-muted mt-0.5">{activeStep.subtitle}</p>
 
-            {/* step 2: show join call link — only clickable on meeting day */}
-            {activeStep.step === 2 && (
+            {/* step 3: discovery meeting — show join call link */}
+            {activeStep.step === 3 && (
               isMeetingDay ? (
                 <a
                   href={bookingId ? `/call/${bookingId}` : "#"}
@@ -516,7 +599,7 @@ export function TrackerClient({
                   join your call
                 </a>
               ) : (
-                <div className="mt-3 rounded-lg bg-gray-100 border border-gray-200 px-4 py-3 text-center">
+                <div className="mt-3 rounded-lg bg-white/5 border border-border px-4 py-3 text-center">
                   <p className="text-sm font-medium text-muted">call opens day of your meeting</p>
                   {meetingLabel && (
                     <p className="text-xs text-muted/70 mt-0.5">{meetingLabel}</p>
@@ -525,8 +608,8 @@ export function TrackerClient({
               )
             )}
 
-            {/* step 4: client build approval */}
-            {activeStep.step === 4 && !revisionSent && !showRevisionForm && (
+            {/* step 5: client build approval */}
+            {activeStep.step === 5 && !revisionSent && !showRevisionForm && (
               <div className="mt-4 space-y-3">
                 {buildPreviewUrl && (
                   <a
@@ -555,7 +638,7 @@ export function TrackerClient({
                     type="button"
                     onClick={() => setShowRevisionForm(true)}
                     disabled={actionLoading}
-                    className="flex-1 rounded-lg border-2 border-primary bg-white px-4 py-3 text-sm font-medium text-primary active:bg-primary/5 hover:bg-primary/5 transition-colors disabled:opacity-50"
+                    className="flex-1 rounded-lg border-2 border-primary bg-surface px-4 py-3 text-sm font-medium text-primary active:bg-primary/5 hover:bg-primary/5 transition-colors disabled:opacity-50"
                   >
                     request revision
                   </button>
@@ -563,15 +646,15 @@ export function TrackerClient({
               </div>
             )}
 
-            {/* step 4: revision form */}
-            {activeStep.step === 4 && showRevisionForm && !revisionSent && (
+            {/* step 5: revision form */}
+            {activeStep.step === 5 && showRevisionForm && !revisionSent && (
               <div className="mt-4 space-y-3">
                 <p className="text-xs text-muted">describe the changes you'd like and we'll get right on it.</p>
                 <textarea
                   value={revisionText}
                   onChange={(e) => setRevisionText(e.target.value)}
                   placeholder="tell us what you'd like changed..."
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-foreground placeholder:text-muted/50 focus:border-primary focus:outline-none resize-none"
+                  className="w-full rounded-lg border border-border px-3 py-2.5 text-sm text-foreground placeholder:text-muted/50 focus:border-primary focus:outline-none resize-none"
                   rows={4}
                 />
                 <div className="flex gap-2">
@@ -586,7 +669,7 @@ export function TrackerClient({
                   <button
                     type="button"
                     onClick={() => { setShowRevisionForm(false); setRevisionText(""); }}
-                    className="rounded-lg border border-gray-300 px-4 py-3 text-sm font-medium text-muted hover:text-foreground transition-colors"
+                    className="rounded-lg border border-border px-4 py-3 text-sm font-medium text-muted hover:text-foreground transition-colors"
                   >
                     cancel
                   </button>
@@ -594,8 +677,8 @@ export function TrackerClient({
               </div>
             )}
 
-            {/* step 4: revision sent confirmation */}
-            {activeStep.step === 4 && revisionSent && (
+            {/* step 5: revision sent confirmation */}
+            {activeStep.step === 5 && revisionSent && (
               <div className="mt-4 space-y-3">
                 <div className="rounded-lg bg-gradient-to-r from-primary/5 to-secondary/5 border border-primary/15 px-4 py-3 text-center">
                   <div className="flex items-center justify-center gap-2 mb-1">
@@ -618,7 +701,7 @@ export function TrackerClient({
             )}
 
             {/* step 5: plug-in — credential submission */}
-            {activeStep.step === 5 && !credentialsSent && (
+            {activeStep.step === 6 && !credentialsSent && (
               <div className="mt-4 space-y-3">
                 <p className="text-xs text-muted">
                   we need your login credentials for the tools in your workflow so we can connect everything up.
@@ -633,20 +716,20 @@ export function TrackerClient({
                         value={cred.service}
                         onChange={(e) => updateCredential(i, "service", e.target.value)}
                         placeholder="service (e.g. HubSpot)"
-                        className="flex-1 rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-foreground placeholder:text-muted/50 focus:border-primary focus:outline-none"
+                        className="flex-1 rounded-lg border border-border px-3 py-2.5 text-sm text-foreground placeholder:text-muted/50 focus:border-primary focus:outline-none"
                       />
                       <input
                         type="text"
                         value={cred.value}
                         onChange={(e) => updateCredential(i, "value", e.target.value)}
                         placeholder="login / API key"
-                        className="flex-[2] rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-foreground placeholder:text-muted/50 focus:border-primary focus:outline-none"
+                        className="flex-[2] rounded-lg border border-border px-3 py-2.5 text-sm text-foreground placeholder:text-muted/50 focus:border-primary focus:outline-none"
                       />
                       {credentials.length > 1 && (
                         <button
                           type="button"
                           onClick={() => removeCredential(i)}
-                          className="shrink-0 rounded-lg border border-gray-300 px-2 text-muted hover:text-red-500 hover:border-red-300 transition-colors"
+                          className="shrink-0 rounded-lg border border-border px-2 text-muted hover:text-red-500 hover:border-red-300 transition-colors"
                         >
                           <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -660,7 +743,7 @@ export function TrackerClient({
                 <button
                   type="button"
                   onClick={addCredentialRow}
-                  className="w-full rounded-lg border border-dashed border-gray-300 py-2 text-xs font-medium text-muted hover:border-primary hover:text-primary transition-colors"
+                  className="w-full rounded-lg border border-dashed border-border py-2 text-xs font-medium text-muted hover:border-primary hover:text-primary transition-colors"
                 >
                   + add another service
                 </button>
@@ -677,7 +760,7 @@ export function TrackerClient({
             )}
 
             {/* step 5: credentials sent — waiting for connection */}
-            {activeStep.step === 5 && credentialsSent && (
+            {activeStep.step === 6 && credentialsSent && (
               <div className="mt-4">
                 <div className="rounded-lg bg-gradient-to-r from-primary/5 to-secondary/5 border border-primary/15 px-4 py-3 text-center">
                   <div className="flex items-center justify-center gap-2 mb-1">
@@ -696,9 +779,9 @@ export function TrackerClient({
             )}
 
             {/* step 6: billing */}
-            {activeStep.step === 6 && !paid && (
+            {activeStep.step === 7 && !paid && (
               <div className="mt-4 space-y-3">
-                <div className="rounded-lg bg-white border border-gray-200 p-4">
+                <div className="rounded-lg bg-surface border border-border p-4">
                   <div className="flex items-center justify-between mb-3">
                     <div>
                       <p className="text-xs text-muted">your plan</p>
@@ -740,18 +823,44 @@ export function TrackerClient({
                   )}
                 </div>
                 {!hasFreeAddon && (
-                  <div className="flex items-center justify-center gap-1.5 text-[10px] text-muted">
-                    <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                    </svg>
-                    secure payment via stripe
-                  </div>
+                  <>
+                    <div className="flex items-center justify-center gap-1.5 text-[10px] text-muted">
+                      <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                      </svg>
+                      secure payment via stripe
+                    </div>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        setPaymentLoading(true);
+                        try {
+                          const res = await fetch(`/api/track/${slug}/demo-pay`, { method: "POST" });
+                          if (res.ok) {
+                            setPaid(true);
+                            setCurrentStep(7);
+                            setSteps((prev) =>
+                              prev.map((s, i) => ({
+                                ...s,
+                                status: i < 6 ? "done" : i === 6 ? "active" : s.status,
+                                completedAt: i < 6 && !s.completedAt ? new Date().toISOString() : s.completedAt,
+                              })) as TrackerStep[]
+                            );
+                          }
+                        } catch {} finally { setPaymentLoading(false); }
+                      }}
+                      disabled={paymentLoading}
+                      className="w-full mt-2 rounded-lg border border-dashed border-border py-2 text-[10px] font-medium text-muted hover:border-primary hover:text-primary transition-colors"
+                    >
+                      {paymentLoading ? "processing..." : "mark as paid (demo)"}
+                    </button>
+                  </>
                 )}
               </div>
             )}
 
             {/* step 6: paid confirmation */}
-            {activeStep.step === 6 && paid && (
+            {activeStep.step === 7 && paid && (
               <div className="mt-4">
                 <div className="rounded-lg bg-gradient-to-r from-primary/5 to-secondary/5 border border-primary/15 px-4 py-3 text-center">
                   <p className="text-sm font-bold text-foreground">payment received!</p>
@@ -761,11 +870,14 @@ export function TrackerClient({
             )}
 
             {/* step 7: NPS survey */}
-            {activeStep.step === 7 && !surveyCompleted && (
+            {activeStep.step === 8 && !surveyCompleted && (
               <div className="mt-4 space-y-4">
                 <div>
-                  <p className="text-xs text-muted mb-1">
-                    complete this quick survey and get a <span className="font-bold text-primary">free workflow add-on</span> as a thank you.
+                  <p className="text-sm font-bold text-foreground mb-1">
+                    pleasure working with you, {clientName}!
+                  </p>
+                  <p className="text-xs text-muted">
+                    take this quick survey and get a <span className="font-bold text-primary">free workflow build</span> as a thank you.
                   </p>
                 </div>
 
@@ -782,7 +894,7 @@ export function TrackerClient({
                         className={`flex-1 rounded-md py-2.5 text-xs font-bold transition-all ${
                           npsScore === i
                             ? "bg-gradient-to-r from-primary to-secondary text-white shadow-md scale-110"
-                            : "bg-gray-100 text-foreground hover:bg-gray-200"
+                            : "bg-white/5 text-foreground hover:bg-white/10"
                         }`}
                       >
                         {i}
@@ -803,7 +915,7 @@ export function TrackerClient({
                     value={npsFeedback}
                     onChange={(e) => setNpsFeedback(e.target.value)}
                     placeholder="tell us what you loved, or what we could do better..."
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-foreground placeholder:text-muted/50 focus:border-primary focus:outline-none resize-none"
+                    className="w-full rounded-lg border border-border px-3 py-2.5 text-sm text-foreground placeholder:text-muted/50 focus:border-primary focus:outline-none resize-none"
                     rows={3}
                   />
                 </div>
@@ -820,7 +932,7 @@ export function TrackerClient({
             )}
 
             {/* step 7: survey completed */}
-            {activeStep.step === 7 && surveyCompleted && (
+            {activeStep.step === 8 && surveyCompleted && (
               <div className="mt-4">
                 <div className="rounded-lg bg-gradient-to-r from-primary/5 to-secondary/5 border border-primary/15 px-4 py-4 text-center">
                   <p className="text-sm font-bold text-foreground">thank you for your feedback!</p>
@@ -845,7 +957,7 @@ export function TrackerClient({
             <p className="text-lg font-extrabold text-foreground">your blend is ready!</p>
             <p className="text-xs text-muted mt-1">every step is complete. time to take a sip.</p>
             {earnedAddon && (
-              <div className="mt-3 rounded-lg bg-white border border-primary/20 px-3 py-3">
+              <div className="mt-3 rounded-lg bg-surface border border-primary/20 px-3 py-3">
                 <p className="text-xs font-bold text-primary">free add-on unlocked!</p>
                 <p className="text-[10px] text-muted mt-0.5 mb-2">
                   you earned a free single scoop workflow tool. book it whenever you're ready.
@@ -871,9 +983,9 @@ export function TrackerClient({
 
         {/* cancelled state */}
         {cancelled && (
-          <div className="mt-4 rounded-xl bg-red-50 border border-red-200 p-4 text-center">
-            <p className="text-sm font-medium text-red-700">booking cancelled</p>
-            <p className="mt-1 text-xs text-red-500">your meeting has been cancelled.</p>
+          <div className="mt-4 rounded-xl bg-red-500/10 border border-red-500/20 p-4 text-center">
+            <p className="text-sm font-medium text-red-400">booking cancelled</p>
+            <p className="mt-1 text-xs text-red-400/70">your meeting has been cancelled.</p>
           </div>
         )}
 
@@ -892,7 +1004,7 @@ export function TrackerClient({
               type="button"
               onClick={openReschedule}
               disabled={actionLoading}
-              className="flex-1 rounded-lg border-2 border-primary bg-white px-4 py-3 sm:py-2.5 text-sm font-medium text-primary active:bg-primary/5 hover:bg-primary/5 transition-colors disabled:opacity-50"
+              className="flex-1 rounded-lg border-2 border-primary bg-surface px-4 py-3 sm:py-2.5 text-sm font-medium text-primary active:bg-primary/5 hover:bg-primary/5 transition-colors disabled:opacity-50"
             >
               reschedule
             </button>
@@ -900,7 +1012,7 @@ export function TrackerClient({
               type="button"
               onClick={handleCancel}
               disabled={actionLoading}
-              className="flex-1 rounded-lg border-2 border-red-300 bg-white px-4 py-3 sm:py-2.5 text-sm font-medium text-red-600 active:bg-red-50 hover:bg-red-50 transition-colors disabled:opacity-50"
+              className="flex-1 rounded-lg border-2 border-red-500/30 bg-surface px-4 py-3 sm:py-2.5 text-sm font-medium text-red-400 active:bg-red-500/10 hover:bg-red-500/10 transition-colors disabled:opacity-50"
             >
               {actionLoading ? "cancelling..." : "cancel booking"}
             </button>
@@ -909,7 +1021,7 @@ export function TrackerClient({
 
         {/* reschedule slot picker */}
         {canModify && showReschedule && (
-          <div className="mt-4 rounded-xl bg-white border border-gray-200 p-4 space-y-3">
+          <div className="mt-4 rounded-xl bg-surface border border-border p-4 space-y-3">
             <div className="flex items-center justify-between">
               <p className="text-sm font-medium text-foreground">pick a new time</p>
               <button
@@ -935,7 +1047,7 @@ export function TrackerClient({
                       className={`shrink-0 rounded-lg px-3 py-2 text-xs font-medium transition-all ${
                         rescheduleDay === day.date
                           ? "bg-foreground text-white"
-                          : "bg-white border border-gray-200 text-foreground active:border-foreground/30 hover:border-foreground/30"
+                          : "bg-surface border border-border text-foreground active:border-foreground/30 hover:border-foreground/30"
                       }`}
                     >
                       {day.label}
@@ -952,7 +1064,7 @@ export function TrackerClient({
                         className={`rounded-lg border-2 px-2 py-2.5 sm:py-2 text-sm font-medium transition-all ${
                           rescheduleSlot === time.start
                             ? "border-primary bg-primary text-white"
-                            : "border-gray-200 bg-white text-foreground active:border-primary/50 hover:border-primary/50"
+                            : "border-border bg-surface text-foreground active:border-primary/50 hover:border-primary/50"
                         }`}
                       >
                         {time.label}
@@ -975,7 +1087,7 @@ export function TrackerClient({
 
         {/* action error */}
         {actionError && (
-          <p className="mt-2 text-center text-sm text-red-600 font-medium">{actionError}</p>
+          <p className="mt-2 text-center text-sm text-red-400 font-medium">{actionError}</p>
         )}
 
         {/* auto-refresh hint */}

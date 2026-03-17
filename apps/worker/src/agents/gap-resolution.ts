@@ -3,6 +3,7 @@ import { prisma } from "@slushie/db";
 import { createEvent, type SlushieEvent } from "@slushie/events";
 import { publishEvent } from "../publish";
 import { createAgentLogger } from "../logger";
+import { pipelineQueue } from "../queues";
 import Redis from "ioredis";
 
 function getRedisConnection() {
@@ -115,12 +116,12 @@ export async function handleResolutionReview(
       );
     }
 
-    await publishEvent(
-      createEvent("resolution.complete", event.pipelineRunId, {
+    const resolutionEvent = createEvent("resolution.complete", event.pipelineRunId, {
         cyclesCompleted: state.cyclesCompleted,
         finalPrototypeVersion: version,
-      })
-    );
+      });
+    await publishEvent(resolutionEvent);
+    await pipelineQueue.add("resolution.complete", resolutionEvent);
 
     resolutionStates.delete(event.pipelineRunId);
     return;

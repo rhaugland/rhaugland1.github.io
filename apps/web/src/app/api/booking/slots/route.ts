@@ -16,7 +16,7 @@ export async function GET() {
     });
 
     const bookedTimes = new Set(
-      bookedMeetings.map((b) => b.meetingTime.toISOString())
+      bookedMeetings.flatMap((b) => b.meetingTime ? [b.meetingTime.toISOString()] : [])
     );
 
     const filtered = slots

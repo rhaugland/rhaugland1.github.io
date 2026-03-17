@@ -48,9 +48,9 @@ export default async function BuildsPage() {
       {runs.length === 0 ? (
         <p className="mt-8 text-sm text-muted">no builds yet. run a discovery call to start.</p>
       ) : (
-        <div className="mt-6 overflow-hidden rounded-lg border border-gray-200">
+        <div className="mt-6 overflow-hidden rounded-lg border border-border">
           <table className="w-full text-sm">
-            <thead className="border-b border-gray-200 bg-gray-50">
+            <thead className="border-b border-border bg-surface-light">
               <tr>
                 <th className="px-4 py-3 text-left font-medium text-muted">client</th>
                 <th className="px-4 py-3 text-left font-medium text-muted">status</th>
@@ -60,18 +60,18 @@ export default async function BuildsPage() {
                 <th className="px-4 py-3 text-left font-medium text-muted">actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200">
+            <tbody className="divide-y divide-border">
               {runs.map((run) => {
                 const latestGapReport =
                   run.call.analysis?.buildSpecs[0]?.prototypes[0]?.gapReports[0] ?? null;
                 const coverageScore = latestGapReport?.coverageScore ?? null;
 
                 return (
-                  <tr key={run.id} className="hover:bg-gray-50">
+                  <tr key={run.id} className="hover:bg-surface-light">
                     <td className="px-4 py-3 font-medium">{run.client.name}</td>
                     <td className="px-4 py-3">
                       <span
-                        className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${statusColors[run.status] ?? "bg-gray-100 text-gray-700"}`}
+                        className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${statusColors[run.status] ?? "bg-white/5 text-gray-400"}`}
                       >
                         {run.status.toLowerCase()}
                       </span>

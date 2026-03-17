@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@slushie/db";
 import { auth } from "@/lib/auth";
+import { sendTeamReviewing } from "@/lib/email";
 
 export async function POST(request: Request) {
   const session = await auth();
@@ -38,6 +39,22 @@ export async function POST(request: Request) {
     where: { id: tracker.id },
     data: { currentStep: 3, steps: updatedSteps },
   });
+
+  // email client: team is reviewing (step 3)
+  if (tracker.bookingId) {
+    const booking = await prisma.booking.findUnique({
+      where: { id: tracker.bookingId },
+      select: { name: true, email: true, businessName: true },
+    });
+    if (booking?.email) {
+      sendTeamReviewing({
+        to: booking.email,
+        name: booking.name,
+        businessName: booking.businessName,
+        slug: tracker.slug,
+      }).catch((err) => console.error("[email] team reviewing failed:", err));
+    }
+  }
 
   return NextResponse.json({ ok: true, currentStep: 3 });
 }

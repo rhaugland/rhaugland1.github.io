@@ -48,6 +48,17 @@ export interface ManifestDecisionLogEntry {
   consultationRound: number | null;
 }
 
+export interface ManifestDesignPreferences {
+  theme?: "light" | "dark";
+  backgroundColor?: string | null;
+  accentColor?: string | null;
+  fontBody?: string | null;
+  fontHeading?: string | null;
+  borderRadius?: string | null;
+  spacing?: string | null;
+  notes?: string | null;
+}
+
 export interface PrototypeManifest {
   version: number;
   pages: ManifestPage[];
@@ -55,4 +66,5 @@ export interface PrototypeManifest {
   mockEndpoints: ManifestMockEndpoint[];
   simulatedIntegrations: ManifestSimulatedIntegration[];
   decisionLog: ManifestDecisionLogEntry[];
+  designPreferences?: ManifestDesignPreferences;
 }

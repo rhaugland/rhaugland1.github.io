@@ -64,7 +64,7 @@ export default async function TrackerPage({
           },
         },
       },
-      booking: { select: { id: true, businessName: true, meetingTime: true, plan: true, email: true, freeAddonEarned: true } },
+      booking: { select: { id: true, businessName: true, meetingTime: true, plan: true, email: true, description: true, freeAddonEarned: true } },
     },
   });
 
@@ -100,9 +100,9 @@ export default async function TrackerPage({
   // expired links get a friendly message — 30 day expiry per spec
   if (tracker.expiresAt && tracker.expiresAt < new Date()) {
     return (
-      <main className="flex min-h-screen items-center justify-center slushie-gradient">
+      <main className="flex min-h-screen items-center justify-center bg-background">
         <div className="text-center">
-          <h1 className="text-3xl font-extrabold text-primary">slushie</h1>
+          <h1 className="text-3xl font-extrabold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">slushie</h1>
           <p className="mt-4 text-foreground">this link has expired.</p>
           <p className="mt-2 text-muted text-sm">
             reach out to your slushie contact for a fresh one.
@@ -118,8 +118,29 @@ export default async function TrackerPage({
     tracker.booking?.businessName ??
     "your project";
 
-  const buildPreviewUrl =
-    tracker.pipelineRun?.call?.analysis?.buildSpecs?.[0]?.prototypes?.[0]?.previewUrl ?? null;
+  // generate a prototypeNanoid if pipeline has a prototype but nanoid isn't set yet
+  const hasPrototype = !!tracker.pipelineRun?.call?.analysis?.buildSpecs?.[0]?.prototypes?.[0];
+  if (hasPrototype && !tracker.prototypeNanoid) {
+    const { nanoid } = await import("nanoid");
+    const newNanoid = nanoid(21);
+    await prisma.tracker.update({
+      where: { id: tracker.id },
+      data: { prototypeNanoid: newNanoid },
+    });
+    tracker.prototypeNanoid = newNanoid;
+  }
+
+  const buildPreviewUrl = tracker.prototypeNanoid
+    ? `/preview/${tracker.prototypeNanoid}`
+    : null;
+
+  // extract tech stack from booking description
+  const description = tracker.booking?.description ?? null;
+  const techStackMatch = description?.match(/tools\/tech stack:\s*(.+)/i);
+  const techStack = techStackMatch?.[1]?.split(",").map((t: string) => t.trim()).filter(Boolean) ?? null;
+
+  // pipeline status for build context
+  const pipelineStatus = tracker.pipelineRun?.status ?? null;
 
   return (
     <TrackerClient
@@ -142,6 +163,10 @@ export default async function TrackerPage({
       }
       hasFreeAddon={hasFreeAddon && tracker.booking?.plan === "SINGLE_SCOOP"}
       surveyCompleted={!!tracker.npsCompletedAt}
+      buildDescription={description}
+      techStack={techStack}
+      pipelineStatus={pipelineStatus}
+      pipelineStartedAt={tracker.pipelineRun?.startedAt?.toISOString() ?? null}
     />
   );
 }

@@ -2,9 +2,11 @@ import { NextResponse } from "next/server";
 import { prisma } from "@slushie/db";
 import { nanoid } from "nanoid";
 import bcrypt from "bcryptjs";
-import { createCalendarEvent } from "@/lib/google-calendar";
 import { sendBookingConfirmed } from "@/lib/email";
 import { generateTempPassword } from "@/lib/tracker-auth";
+import { createEventQueue, createEvent } from "@slushie/events";
+
+const pipelineQueue = createEventQueue("pipeline");
 
 const PLAN_WORKFLOW_COUNT: Record<string, number> = {
   SINGLE_SCOOP: 1,
@@ -13,13 +15,14 @@ const PLAN_WORKFLOW_COUNT: Record<string, number> = {
 };
 
 const BOOKING_STEPS = [
-  { step: 1, label: "meeting confirmed", subtitle: "your blend is scheduled. we'll see you there." },
-  { step: 2, label: "meeting", subtitle: "we're on the call. workflow discovery in progress." },
-  { step: 3, label: "slushie build review", subtitle: "our team is reviewing the build for quality." },
-  { step: 4, label: "client build approval", subtitle: "your turn. take a look and let us know." },
-  { step: 5, label: "plug-in", subtitle: "connecting to your tools. almost there." },
-  { step: 6, label: "billing", subtitle: "invoice sent. simple and transparent." },
-  { step: 7, label: "satisfaction survey", subtitle: "how'd we do? we want to keep getting better." },
+  { step: 1, label: "intake build", subtitle: "we're already building your first prototype." },
+  { step: 2, label: "schedule discovery", subtitle: "your rep will reach out to schedule a discovery call." },
+  { step: 3, label: "discovery meeting", subtitle: "let's walk through your workflow together." },
+  { step: 4, label: "discovery build", subtitle: "building an improved version based on our conversation." },
+  { step: 5, label: "client build approval", subtitle: "your turn. take a look and let us know." },
+  { step: 6, label: "plug-in", subtitle: "connecting to your tools. almost there." },
+  { step: 7, label: "billing", subtitle: "invoice sent. simple and transparent." },
+  { step: 8, label: "satisfaction survey", subtitle: "how'd we do? we want to keep getting better." },
 ];
 
 const planLabels: Record<string, string> = {
@@ -31,11 +34,11 @@ const planLabels: Record<string, string> = {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { parentBookingId, description, meetingTime } = body;
+    const { parentBookingId, description } = body;
 
-    if (!parentBookingId || !description || !meetingTime) {
+    if (!parentBookingId || !description) {
       return NextResponse.json(
-        { error: "all fields are required" },
+        { error: "parentBookingId and description are required" },
         { status: 400 }
       );
     }
@@ -89,45 +92,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const meetingDate = new Date(meetingTime);
-    if (isNaN(meetingDate.getTime()) || meetingDate < new Date()) {
-      return NextResponse.json(
-        { error: "meeting time must be in the future" },
-        { status: 400 }
-      );
-    }
-
-    // check slot availability
-    const existingBooking = await prisma.booking.findFirst({
-      where: { meetingTime: meetingDate, status: "CONFIRMED" },
-    });
-
-    if (existingBooking) {
-      return NextResponse.json(
-        { error: "this time slot was just taken. please pick another." },
-        { status: 409 }
-      );
-    }
-
-    // create calendar event
-    let calendarEventId: string | null = null;
-    try {
-      calendarEventId = await createCalendarEvent({
-        summary: `slushie blend — ${parent.businessName} (${planLabels[parent.plan]} #${nextWorkflowNumber})`,
-        description: `customer: ${parent.name} (${parent.email})\nbusiness: ${parent.businessName}\nplan: ${planLabels[parent.plan]} — workflow ${nextWorkflowNumber} of ${totalWorkflows}\n\nworkflow description:\n${description}`,
-        startTime: meetingTime,
-        attendeeEmail: parent.email,
-      });
-    } catch (calErr: unknown) {
-      const message = calErr instanceof Error ? calErr.message : "unknown error";
-      console.error("google calendar event creation failed:", message);
-      return NextResponse.json(
-        { error: "failed to schedule meeting. please try again." },
-        { status: 500 }
-      );
-    }
-
-    // create follow-up booking
+    // create follow-up booking (no meetingTime — scheduled later via discovery)
     const booking = await prisma.booking.create({
       data: {
         name: parent.name,
@@ -135,15 +100,34 @@ export async function POST(request: Request) {
         businessName: parent.businessName,
         plan: parent.plan,
         description,
-        meetingTime: meetingDate,
-        calendarEventId,
         clientId: parent.clientId,
         workflowNumber: nextWorkflowNumber,
         parentBookingId: parent.id,
       },
     });
 
-    // create tracker with temp password
+    // create call record with description as transcript
+    const clientId = parent.clientId!;
+    const call = await prisma.call.create({
+      data: {
+        clientId,
+        startedAt: new Date(),
+        endedAt: new Date(),
+        transcript: description,
+        coachingLog: [],
+      },
+    });
+
+    // create pipeline run
+    const pipelineRun = await prisma.pipelineRun.create({
+      data: {
+        clientId,
+        callId: call.id,
+        status: "RUNNING",
+      },
+    });
+
+    // create tracker at step 1 (active — intake build)
     const slug = nanoid(21);
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 30);
@@ -153,13 +137,14 @@ export async function POST(request: Request) {
 
     const steps = BOOKING_STEPS.map((s, i) => ({
       ...s,
-      status: i === 0 ? "done" : "pending",
-      completedAt: i === 0 ? new Date().toISOString() : null,
+      status: i === 0 ? "active" : "pending",
+      completedAt: null as string | null,
     }));
 
     const tracker = await prisma.tracker.create({
       data: {
         bookingId: booking.id,
+        pipelineRunId: pipelineRun.id,
         slug,
         currentStep: 1,
         steps,
@@ -169,13 +154,22 @@ export async function POST(request: Request) {
       },
     });
 
+    // dispatch call.ended to trigger analyst → builder pipeline
+    await pipelineQueue.add(
+      "call.ended",
+      createEvent("call.ended", pipelineRun.id, {
+        callId: call.id,
+        clientId,
+        duration: 0,
+      })
+    );
+
     // send confirmation email
     sendBookingConfirmed({
       to: parent.email,
       name: parent.name,
       businessName: parent.businessName,
       planLabel: `${planLabels[parent.plan]} — workflow ${nextWorkflowNumber} of ${totalWorkflows}`,
-      meetingTime,
       slug,
       tempPassword,
     }).catch((err) => console.error("[email] next workflow booking confirmed failed:", err));

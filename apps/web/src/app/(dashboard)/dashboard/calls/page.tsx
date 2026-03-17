@@ -34,9 +34,9 @@ export default async function CallsPage() {
           no calls yet. start one to pour your first slushie.
         </p>
       ) : (
-        <div className="overflow-hidden rounded-lg border border-gray-200">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+        <div className="overflow-hidden rounded-lg border border-border">
+          <table className="min-w-full divide-y divide-border">
+            <thead className="bg-surface-light">
               <tr>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-muted">
                   client
@@ -61,7 +61,7 @@ export default async function CallsPage() {
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200 bg-white">
+            <tbody className="divide-y divide-border bg-surface">
               {calls.map((call) => {
                 const isLive = call.startedAt && !call.endedAt;
                 const durationSec =
@@ -90,7 +90,7 @@ export default async function CallsPage() {
                           live
                         </span>
                       ) : (
-                        <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-semibold text-muted">
+                        <span className="rounded-full bg-white/5 px-2.5 py-0.5 text-xs font-semibold text-muted">
                           {call.pipelineRun?.status?.toLowerCase() ?? "ended"}
                         </span>
                       )}

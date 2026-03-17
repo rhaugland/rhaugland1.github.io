@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@slushie/db";
 import { getRedisPublisher } from "@/lib/redis";
 import { verifyTrackerAccess } from "@/lib/tracker-auth";
-import { sendFreeAddonReady } from "@/lib/email";
+import { sendFreeAddonReady, sendThankYou } from "@/lib/email";
 
 export async function POST(
   request: Request,
@@ -27,7 +27,7 @@ export async function POST(
 
   const tracker = await prisma.tracker.findUnique({
     where: { slug },
-    include: { booking: { select: { id: true, name: true, email: true, businessName: true } } },
+    include: { booking: { select: { id: true, name: true, email: true, businessName: true, plan: true, workflowNumber: true } } },
   });
 
   if (!tracker) {
@@ -79,6 +79,23 @@ export async function POST(
       name: tracker.booking.name,
       businessName: tracker.booking.businessName,
     }).catch((err) => console.error("[email] free addon ready failed:", err));
+
+    // email: thank you + book next workflow (for double/triple scoop)
+    const PLAN_WORKFLOW_COUNT: Record<string, number> = {
+      SINGLE_SCOOP: 1,
+      DOUBLE_BLEND: 2,
+      TRIPLE_FREEZE: 3,
+    };
+    const totalWorkflows = PLAN_WORKFLOW_COUNT[tracker.booking.plan] ?? 1;
+
+    sendThankYou({
+      to: tracker.booking.email,
+      name: tracker.booking.name,
+      businessName: tracker.booking.businessName,
+      slug,
+      workflowNumber: tracker.booking.workflowNumber,
+      totalWorkflows,
+    }).catch((err) => console.error("[email] thank you failed:", err));
   }
 
   // publish SSE to update tracker live

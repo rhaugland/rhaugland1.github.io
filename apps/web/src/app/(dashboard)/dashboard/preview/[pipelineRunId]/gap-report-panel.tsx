@@ -53,7 +53,7 @@ export function GapReportPanel({
   return (
     <div className="flex h-full flex-col overflow-y-auto">
       {/* coverage score */}
-      <div className="border-b border-gray-200 p-6">
+      <div className="border-b border-border p-6">
         <p className="text-sm text-muted">coverage score</p>
         <p className={`text-6xl font-extrabold ${getCoverageColor(coverageScore)}`}>
           {coverageScore}
@@ -62,7 +62,7 @@ export function GapReportPanel({
       </div>
 
       {/* categorized gaps */}
-      <div className="border-b border-gray-200 p-6">
+      <div className="border-b border-border p-6">
         <h3 className="text-sm font-bold">gaps ({gaps.length})</h3>
         <div className="mt-2 flex gap-3 text-xs">
           <span className="rounded-full bg-red-100 px-2 py-0.5 text-red-700">
@@ -83,7 +83,7 @@ export function GapReportPanel({
             {gaps.map((gap, i) => {
               const typeStyle = gapTypeColors[gap.type] ?? gapTypeColors.missed;
               return (
-                <div key={i} className="rounded-lg border border-gray-200 p-3">
+                <div key={i} className="rounded-lg border border-border p-3">
                   <div className="flex items-center gap-2">
                     <span
                       className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${typeStyle.bg} ${typeStyle.text}`}
@@ -114,7 +114,7 @@ export function GapReportPanel({
           <h3 className="text-sm font-bold">tradeoff explanations ({tradeoffs.length})</h3>
           <div className="mt-3 space-y-3">
             {tradeoffs.map((tradeoff, i) => (
-              <div key={i} className="rounded-lg border border-gray-200 p-3">
+              <div key={i} className="rounded-lg border border-border p-3">
                 <p className="text-sm font-medium">{tradeoff.decision}</p>
                 <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
                   <div>

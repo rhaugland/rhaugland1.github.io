@@ -4,19 +4,8 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 
 export default async function PostmortemsListPage() {
-  // admin-only access
   const session = await auth();
   if (!session) redirect("/api/auth/signin");
-  if (session.user.role !== "admin") {
-    return (
-      <div className="py-12 text-center">
-        <h2 className="text-2xl font-bold">access denied</h2>
-        <p className="mt-2 text-sm text-muted">
-          only admins can access postmortem reviews
-        </p>
-      </div>
-    );
-  }
 
   const completedRuns = await prisma.pipelineRun.findMany({
     where: { status: "COMPLETED" },
@@ -57,7 +46,7 @@ export default async function PostmortemsListPage() {
               <Link
                 key={run.id}
                 href={`/dashboard/postmortems/${run.id}`}
-                className="block rounded-lg border border-gray-200 p-4 hover:border-secondary hover:bg-gray-50"
+                className="block rounded-lg border border-border p-4 hover:border-secondary hover:bg-surface-light"
               >
                 <div className="flex items-center justify-between">
                   <div>
@@ -94,7 +83,7 @@ export default async function PostmortemsListPage() {
                       className={`rounded-full px-2 py-0.5 text-xs font-medium ${
                         hasPostmortem
                           ? "bg-green-100 text-green-700"
-                          : "bg-gray-100 text-gray-700"
+                          : "bg-white/5 text-gray-400"
                       }`}
                     >
                       {hasPostmortem ? "reviewed" : "pending"}

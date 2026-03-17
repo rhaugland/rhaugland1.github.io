@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
 interface BookingCardProps {
@@ -8,7 +8,7 @@ interface BookingCardProps {
   name: string;
   businessName: string;
   plan: string;
-  meetingTime: string;
+  meetingTime: string | null;
   trackingSlug: string | null;
   assignee: { id: string; name: string } | null;
   employees: Array<{ id: string; name: string }>;
@@ -17,6 +17,11 @@ interface BookingCardProps {
   stepNumber?: number;
   buildStatus?: "none" | "analyzing" | "building" | "ready";
   buildPreviewUrl?: string;
+  v1PreviewUrl?: string;
+  v2Status?: "awaiting-meeting" | "in-meeting" | "analyzing" | "gap-report" | "building" | "ready" | null;
+  v2PreviewUrl?: string;
+  latestVersion?: number;
+  pipelineStartedAt?: string | null;
   pipelineRunId?: string | null;
   currentStep?: number;
   clientFeedback?: string | null;
@@ -30,6 +35,8 @@ interface BookingCardProps {
   postmortemPipelineRunId?: string | null;
   nextWorkflowStatus?: "eligible" | "scheduled" | null;
   workflowLabel?: string | null;
+  discoveryEmailStatus?: string | null;
+  discoveryEmailSentAt?: string | null;
 }
 
 export function BookingCard({
@@ -46,6 +53,11 @@ export function BookingCard({
   stepNumber,
   buildStatus,
   buildPreviewUrl,
+  v1PreviewUrl,
+  v2Status,
+  v2PreviewUrl,
+  latestVersion,
+  pipelineStartedAt,
   pipelineRunId,
   currentStep,
   clientFeedback,
@@ -59,6 +71,8 @@ export function BookingCard({
   postmortemPipelineRunId,
   nextWorkflowStatus,
   workflowLabel,
+  discoveryEmailStatus,
+  discoveryEmailSentAt,
 }: BookingCardProps) {
   const router = useRouter();
   const [claiming, setClaiming] = useState(false);
@@ -73,13 +87,55 @@ export function BookingCard({
   const [pluginLoading, setPluginLoading] = useState(false);
   const [pluginConnecting, setPluginConnecting] = useState(pluginStatus === "connecting");
   const [advancing, setAdvancing] = useState(false);
+  const [timeLeft, setTimeLeft] = useState("");
+  const [discoveryAction, setDiscoveryAction] = useState<string | null>(null);
+  const [emailBody, setEmailBody] = useState(
+    `Hi ${name},\n\nWe've finished building your first prototype for ${businessName} — take a look at it on your tracker page!\n\nWe'd love to schedule a discovery call to walk through your workflow together so we can build something even better. What times work for you this week?\n\nLooking forward to it,\nThe slushie team`
+  );
+  const [scheduleMeetingTime, setScheduleMeetingTime] = useState("");
 
-  const meetingLabel = new Date(meetingTime).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
+  // build time — show elapsed time during builds
+  useEffect(() => {
+    if (!pipelineStartedAt || buildStatus === "none") return;
+    // step 1: show during intake build
+    // step 4: show during discovery build
+    const isIntakeBuild = currentStep === 1 && buildStatus !== "ready";
+    const isDiscoveryBuild = currentStep === 4 && v2Status && !["ready", "awaiting-meeting", "in-meeting"].includes(v2Status);
+    if (!isIntakeBuild && !isDiscoveryBuild) return;
+
+    const started = new Date(pipelineStartedAt).getTime();
+
+    function tick() {
+      const elapsed = Date.now() - started;
+      const mins = Math.floor(elapsed / 60000);
+      const secs = Math.floor((elapsed % 60000) / 1000);
+      setTimeLeft(`${mins}:${secs.toString().padStart(2, "0")} elapsed`);
+    }
+    tick();
+    const interval = setInterval(tick, 1000);
+    return () => clearInterval(interval);
+  }, [pipelineStartedAt, buildStatus, currentStep, v2Status]);
+
+  // poll for build status changes every 15s
+  const needsPoll =
+    (currentStep === 1 && buildStatus !== "ready") ||
+    (currentStep === 4 && v2Status && !["ready", "awaiting-meeting", "in-meeting"].includes(v2Status));
+  useEffect(() => {
+    if (!needsPoll) return;
+    const interval = setInterval(() => {
+      router.refresh();
+    }, 15000);
+    return () => clearInterval(interval);
+  }, [needsPoll, router]);
+
+  const meetingLabel = meetingTime
+    ? new Date(meetingTime).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      })
+    : null;
 
   async function handleClaim(employeeId: string) {
     setClaiming(true);
@@ -237,14 +293,27 @@ export function BookingCard({
     }
   }
 
-  const isSlushieReview = currentStep === 3;
-  const isClientReview = currentStep === 4;
-  const isPluginStep = currentStep === 5;
+  async function handleDiscoveryAction(action: string, meetingTimeVal?: string) {
+    setDiscoveryAction(action);
+    try {
+      const res = await fetch(`/api/booking/${id}/schedule-discovery`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, ...(meetingTimeVal ? { meetingTime: meetingTimeVal } : {}) }),
+      });
+      if (res.ok) router.refresh();
+    } finally {
+      setDiscoveryAction(null);
+    }
+  }
+
+  const isClientReview = currentStep === 5;
+  const isPluginStep = currentStep === 6;
   const hasClientFeedback = isClientReview && revisionStatus === "revision_received" && clientFeedback;
   const hasCredentials = isPluginStep && pluginStatus === "credentials_received" && pluginCredentials && pluginCredentials.length > 0;
 
   return (
-    <div className="rounded-lg bg-white border border-gray-200 p-3 shadow-sm">
+    <div className="rounded-lg bg-surface border border-border p-3 shadow-sm">
       {/* step badge — shown in "my meetings" view */}
       {stepLabel && (
         <div className="mb-2 flex items-center gap-1.5">
@@ -273,141 +342,214 @@ export function BookingCard({
         </div>
       </div>
 
-      {/* meeting time */}
-      <div className="mt-2 flex items-center gap-1.5 text-xs text-muted">
-        <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-        </svg>
-        {meetingLabel}
-      </div>
+      {/* meeting time (only if scheduled) */}
+      {meetingLabel && (
+        <div className="mt-2 flex items-center gap-1.5 text-xs text-muted">
+          <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          </svg>
+          discovery: {meetingLabel}
+        </div>
+      )}
 
-      {/* build status */}
-      {buildStatus && buildStatus !== "none" && (
-        <div className="mt-2">
+      {/* ═══ STEP 1: intake build progress ═══ */}
+      {currentStep === 1 && buildStatus && buildStatus !== "none" && (
+        <div className="mt-2 space-y-1.5">
           {buildStatus === "analyzing" && (
-            <div className="flex items-center gap-1.5 rounded-md bg-amber-50 border border-amber-200 px-2 py-1.5">
-              <div className="h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
-              <span className="text-[10px] font-medium text-amber-700">analyzing intake...</span>
+            <div className="flex items-center justify-between rounded-md bg-amber-500/10 border border-amber-500/20 px-2 py-1.5">
+              <div className="flex items-center gap-1.5">
+                <div className="h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
+                <span className="text-[10px] font-medium text-amber-400">analyzing intake</span>
+              </div>
+              {timeLeft && <span className="text-[9px] text-amber-400/70">{timeLeft}</span>}
             </div>
           )}
           {buildStatus === "building" && (
-            <div className="flex items-center gap-1.5 rounded-md bg-blue-50 border border-blue-200 px-2 py-1.5">
-              <div className="h-2 w-2 rounded-full bg-blue-400 animate-pulse" />
-              <span className="text-[10px] font-medium text-blue-700">building prototype...</span>
+            <div className="flex items-center justify-between rounded-md bg-blue-500/10 border border-blue-500/20 px-2 py-1.5">
+              <div className="flex items-center gap-1.5">
+                <div className="h-2 w-2 rounded-full bg-blue-400 animate-pulse" />
+                <span className="text-[10px] font-medium text-blue-400">building intake prototype</span>
+              </div>
+              {timeLeft && <span className="text-[9px] text-blue-400/70">{timeLeft}</span>}
             </div>
           )}
           {buildStatus === "ready" && (
+            <div className="flex items-center gap-1.5 rounded-md bg-gradient-to-r from-primary/10 to-secondary/10 border border-primary/20 px-2 py-1.5">
+              <div className="h-2 w-2 rounded-full bg-primary" />
+              <span className="text-[10px] font-bold text-primary">intake build ready</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ═══ STEP 2: schedule discovery ═══ */}
+      {currentStep === 2 && (
+        <div className="mt-2 space-y-1.5">
+          {/* always show intake prototype preview */}
+          {v1PreviewUrl && (
             <a
-              href={buildPreviewUrl ?? "#"}
+              href={v1PreviewUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-1.5 rounded-md bg-gradient-to-r from-primary/10 to-secondary/10 border border-primary/20 px-2 py-1.5 hover:border-primary/40 transition-colors"
             >
               <div className="h-2 w-2 rounded-full bg-primary" />
-              <span className="text-[10px] font-bold text-primary">initial build ready — view</span>
+              <span className="text-[10px] font-bold text-primary">intake build ready — view</span>
             </a>
+          )}
+
+          {/* email scheduling UI */}
+          {!discoveryEmailStatus && (
+            <div className="rounded-md border border-border bg-surface-light p-2 space-y-1.5">
+              <p className="text-[9px] font-bold text-muted uppercase tracking-wide">discovery scheduling email</p>
+              <textarea
+                value={emailBody}
+                onChange={(e) => setEmailBody(e.target.value)}
+                className="w-full rounded-md border border-border px-2 py-1.5 text-xs text-foreground focus:border-primary focus:outline-none resize-none"
+                rows={4}
+              />
+              <button
+                type="button"
+                onClick={() => handleDiscoveryAction("send_email")}
+                disabled={discoveryAction === "send_email"}
+                className="w-full rounded-md bg-gradient-to-r from-primary to-secondary px-2 py-1.5 text-[10px] font-bold text-white transition-all hover:shadow-md active:scale-[0.98] disabled:opacity-50"
+              >
+                {discoveryAction === "send_email" ? "sending..." : "send discovery email"}
+              </button>
+            </div>
+          )}
+
+          {discoveryEmailStatus === "sent" && (
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between rounded-md bg-blue-500/10 border border-blue-500/20 px-2 py-1.5">
+                <div className="flex items-center gap-1.5">
+                  <svg className="h-3 w-3 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
+                  <span className="text-[10px] font-medium text-blue-400">email sent</span>
+                </div>
+                {discoveryEmailSentAt && (
+                  <span className="text-[9px] text-blue-400/70">
+                    {new Date(discoveryEmailSentAt).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                  </span>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => handleDiscoveryAction("mark_responded")}
+                disabled={discoveryAction === "mark_responded"}
+                className="w-full rounded-md border border-border px-2 py-1.5 text-[10px] font-medium text-foreground hover:border-primary hover:text-primary transition-colors disabled:opacity-50"
+              >
+                {discoveryAction === "mark_responded" ? "updating..." : "mark responded"}
+              </button>
+            </div>
+          )}
+
+          {discoveryEmailStatus === "responded" && (
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-1.5 rounded-md bg-primary/10 border border-primary/20 px-2 py-1.5">
+                <div className="h-2 w-2 rounded-full bg-primary" />
+                <span className="text-[10px] font-bold text-primary">client responded</span>
+              </div>
+              <div className="rounded-md border border-border bg-surface-light p-2 space-y-1.5">
+                <label className="text-[9px] font-bold text-muted uppercase tracking-wide">schedule meeting</label>
+                <input
+                  type="datetime-local"
+                  value={scheduleMeetingTime}
+                  onChange={(e) => setScheduleMeetingTime(e.target.value)}
+                  className="w-full rounded-md border border-border px-2 py-1.5 text-xs text-foreground focus:border-primary focus:outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => handleDiscoveryAction("schedule_meeting", scheduleMeetingTime)}
+                  disabled={discoveryAction === "schedule_meeting" || !scheduleMeetingTime}
+                  className="w-full rounded-md bg-gradient-to-r from-primary to-secondary px-2 py-1.5 text-[10px] font-bold text-white transition-all hover:shadow-md active:scale-[0.98] disabled:opacity-50"
+                >
+                  {discoveryAction === "schedule_meeting" ? "scheduling..." : "schedule meeting"}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {discoveryEmailStatus === "scheduled" && (
+            <div className="flex items-center gap-1.5 rounded-md bg-gradient-to-r from-primary/10 to-secondary/10 border border-primary/20 px-2 py-1.5">
+              <svg className="h-3 w-3 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+              <span className="text-[10px] font-bold text-primary">meeting scheduled</span>
+            </div>
           )}
         </div>
       )}
 
-      {/* slushie review actions — step 3 */}
-      {isSlushieReview && !changesPending && !showFeedback && (
+      {/* ═══ STEP 3: discovery meeting ═══ */}
+      {currentStep === 3 && (
         <div className="mt-2 space-y-1.5">
-          {buildPreviewUrl && (
+          {v1PreviewUrl && (
             <a
-              href={buildPreviewUrl}
+              href={v1PreviewUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center justify-center gap-1.5 rounded-md bg-gradient-to-r from-primary/10 to-secondary/10 border border-primary/20 px-2 py-1.5 text-[10px] font-bold text-primary hover:border-primary/40 transition-colors"
+              className="flex items-center gap-1.5 rounded-md bg-gradient-to-r from-primary/10 to-secondary/10 border border-primary/20 px-2 py-1.5 hover:border-primary/40 transition-colors"
             >
-              <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-              </svg>
-              view build
+              <div className="h-2 w-2 rounded-full bg-primary" />
+              <span className="text-[10px] font-bold text-primary">view intake prototype</span>
             </a>
           )}
-          <div className="flex gap-1.5">
-            <button
-              type="button"
-              onClick={handleApprove}
-              disabled={reviewLoading}
-              className="flex-1 rounded-md bg-gradient-to-r from-primary to-secondary px-2 py-1.5 text-[10px] font-bold text-white transition-all hover:shadow-md active:scale-[0.98] disabled:opacity-50"
+
+          {/* gap meeting controls — reuse existing gap meeting logic */}
+          {pipelineRunId && v2Status === "awaiting-meeting" && (
+            <a
+              href={`/dashboard/calls/live/${pipelineRunId}`}
+              className="w-full flex items-center justify-center gap-2 rounded-md bg-gradient-to-r from-primary to-secondary px-2 py-2 text-[11px] font-bold text-white shadow-sm transition-all hover:shadow-md active:scale-[0.98]"
             >
-              {reviewLoading ? "..." : "approve"}
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowFeedback(true)}
-              disabled={reviewLoading}
-              className="flex-1 rounded-md border border-gray-300 px-2 py-1.5 text-[10px] font-medium text-foreground hover:border-primary hover:text-primary transition-colors disabled:opacity-50"
-            >
-              suggest changes
-            </button>
-          </div>
+              <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+              </svg>
+              join discovery meeting
+            </a>
+          )}
+          {pipelineRunId && v2Status === "in-meeting" && (
+            <GapMeetingButton pipelineRunId={pipelineRunId} action="complete" onComplete={() => router.refresh()} />
+          )}
+
+          {/* show build progress if meeting done and discovery build started */}
+          {v2Status && !["ready", "awaiting-meeting", "in-meeting"].includes(v2Status) && (
+            <div className="rounded-md border border-border bg-surface-light p-2 space-y-1">
+              <p className="text-[9px] font-bold text-muted uppercase tracking-wide">discovery build starting...</p>
+            </div>
+          )}
         </div>
       )}
 
-      {/* feedback text box */}
-      {isSlushieReview && showFeedback && !changesPending && (
+      {/* ═══ STEP 4: discovery build progress ═══ */}
+      {currentStep === 4 && (
         <div className="mt-2 space-y-1.5">
-          <textarea
-            value={feedback}
-            onChange={(e) => setFeedback(e.target.value)}
-            placeholder="describe the changes you'd like..."
-            className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-xs text-foreground placeholder:text-muted/50 focus:border-primary focus:outline-none resize-none"
-            rows={3}
-          />
-          <div className="flex gap-1.5">
-            <button
-              type="button"
-              onClick={handleRequestChanges}
-              disabled={reviewLoading || !feedback.trim()}
-              className="flex-1 rounded-md bg-gradient-to-r from-primary to-secondary px-2 py-1.5 text-[10px] font-bold text-white transition-all hover:shadow-md active:scale-[0.98] disabled:opacity-50"
+          {v2Status && !["ready", "awaiting-meeting", "in-meeting"].includes(v2Status) && (
+            <div className="rounded-md border border-border bg-surface-light p-2 space-y-1">
+              <p className="text-[9px] font-bold text-muted uppercase tracking-wide">discovery build progress</p>
+              <V2ProgressSteps status={v2Status as "analyzing" | "gap-report" | "building"} elapsed={timeLeft} />
+            </div>
+          )}
+
+          {v2Status === "ready" && v2PreviewUrl && (
+            <a
+              href={v2PreviewUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 rounded-md bg-gradient-to-r from-primary/10 to-secondary/10 border border-primary/20 px-2 py-1.5 hover:border-primary/40 transition-colors"
             >
-              {reviewLoading ? "sending..." : "send"}
-            </button>
-            <button
-              type="button"
-              onClick={() => { setShowFeedback(false); setFeedback(""); }}
-              className="rounded-md border border-gray-300 px-2 py-1.5 text-[10px] font-medium text-muted hover:text-foreground transition-colors"
-            >
-              cancel
-            </button>
-          </div>
+              <div className="h-2 w-2 rounded-full bg-secondary" />
+              <span className="text-[10px] font-bold text-secondary">
+                v{latestVersion ?? 2} discovery build ready — view
+              </span>
+            </a>
+          )}
         </div>
       )}
 
-      {/* changes pending indicator */}
-      {isSlushieReview && changesPending && (
-        <div className="mt-2 space-y-1.5">
-          <div className="flex items-center gap-1.5 rounded-md bg-amber-50 border border-amber-200 px-2 py-1.5">
-            <div className="h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
-            <span className="text-[10px] font-medium text-amber-700">changes pending...</span>
-          </div>
-          <div className="flex gap-1.5">
-            {buildPreviewUrl && (
-              <a
-                href={buildPreviewUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex-1 text-center rounded-md border border-gray-300 px-2 py-1.5 text-[10px] font-medium text-foreground hover:border-primary hover:text-primary transition-colors"
-              >
-                view build
-              </a>
-            )}
-            <button
-              type="button"
-              onClick={() => setChangesPending(false)}
-              className="flex-1 rounded-md border border-gray-300 px-2 py-1.5 text-[10px] font-medium text-foreground hover:border-primary hover:text-primary transition-colors"
-            >
-              review again
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* client revision received — step 4 */}
+      {/* ═══ STEP 5: client build approval (was step 4) ═══ */}
+      {/* client revision received */}
       {hasClientFeedback && !clientBuildPending && (
         <div className="mt-2 space-y-1.5">
           <div className="flex items-center gap-1.5 rounded-md bg-primary/10 border border-primary/20 px-2 py-1">
@@ -417,7 +559,7 @@ export function BookingCard({
           <textarea
             value={editedFeedback}
             onChange={(e) => setEditedFeedback(e.target.value)}
-            className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-xs text-foreground focus:border-primary focus:outline-none resize-none"
+            className="w-full rounded-md border border-border px-2 py-1.5 text-xs text-foreground focus:border-primary focus:outline-none resize-none"
             rows={3}
           />
           <div className="flex gap-1.5">
@@ -433,12 +575,12 @@ export function BookingCard({
         </div>
       )}
 
-      {/* client build changes in progress — step 4 */}
+      {/* client build changes in progress */}
       {isClientReview && clientBuildPending && (
         <div className="mt-2 space-y-1.5">
-          <div className="flex items-center gap-1.5 rounded-md bg-amber-50 border border-amber-200 px-2 py-1.5">
+          <div className="flex items-center gap-1.5 rounded-md bg-amber-500/10 border border-amber-500/20 px-2 py-1.5">
             <div className="h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
-            <span className="text-[10px] font-medium text-amber-700">developer bot building changes...</span>
+            <span className="text-[10px] font-medium text-amber-400">developer bot building changes...</span>
           </div>
           <div className="flex gap-1.5">
             {buildPreviewUrl && (
@@ -446,7 +588,7 @@ export function BookingCard({
                 href={buildPreviewUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex-1 text-center rounded-md border border-gray-300 px-2 py-1.5 text-[10px] font-medium text-foreground hover:border-primary hover:text-primary transition-colors"
+                className="flex-1 text-center rounded-md border border-border px-2 py-1.5 text-[10px] font-medium text-foreground hover:border-primary hover:text-primary transition-colors"
               >
                 view build
               </a>
@@ -463,34 +605,33 @@ export function BookingCard({
         </div>
       )}
 
-      {/* client review waiting — step 4 with no revision yet */}
+      {/* client review waiting */}
       {isClientReview && !hasClientFeedback && !clientBuildPending && (
         <div className="mt-2">
-          <div className="flex items-center gap-1.5 rounded-md bg-blue-50 border border-blue-200 px-2 py-1.5">
+          <div className="flex items-center gap-1.5 rounded-md bg-blue-500/10 border border-blue-500/20 px-2 py-1.5">
             <div className="h-2 w-2 rounded-full bg-blue-400 animate-pulse" />
-            <span className="text-[10px] font-medium text-blue-700">waiting for client approval...</span>
+            <span className="text-[10px] font-medium text-blue-400">waiting for client approval...</span>
           </div>
         </div>
       )}
 
-      {/* plug-in step 5: waiting for credentials */}
+      {/* ═══ STEP 6: plug-in (was step 5) ═══ */}
       {isPluginStep && !hasCredentials && !pluginConnecting && (
         <div className="mt-2">
-          <div className="flex items-center gap-1.5 rounded-md bg-blue-50 border border-blue-200 px-2 py-1.5">
+          <div className="flex items-center gap-1.5 rounded-md bg-blue-500/10 border border-blue-500/20 px-2 py-1.5">
             <div className="h-2 w-2 rounded-full bg-blue-400 animate-pulse" />
-            <span className="text-[10px] font-medium text-blue-700">waiting for client credentials...</span>
+            <span className="text-[10px] font-medium text-blue-400">waiting for client credentials...</span>
           </div>
         </div>
       )}
 
-      {/* plug-in step 5: credentials received — connect */}
       {hasCredentials && !pluginConnecting && (
         <div className="mt-2 space-y-1.5">
           <div className="flex items-center gap-1.5 rounded-md bg-primary/10 border border-primary/20 px-2 py-1">
             <div className="h-2 w-2 rounded-full bg-primary" />
             <span className="text-[10px] font-bold text-primary">client credentials received</span>
           </div>
-          <div className="rounded-md bg-gray-50 border border-gray-200 p-2 space-y-1">
+          <div className="rounded-md bg-surface-light border border-border p-2 space-y-1">
             {pluginCredentials!.map((cred, i) => (
               <div key={i} className="flex items-center gap-1.5 text-[10px]">
                 <span className="font-medium text-foreground">{cred.service}:</span>
@@ -509,12 +650,11 @@ export function BookingCard({
         </div>
       )}
 
-      {/* plug-in step 5: developer bot connecting */}
       {isPluginStep && pluginConnecting && (
         <div className="mt-2 space-y-1.5">
-          <div className="flex items-center gap-1.5 rounded-md bg-amber-50 border border-amber-200 px-2 py-1.5">
+          <div className="flex items-center gap-1.5 rounded-md bg-amber-500/10 border border-amber-500/20 px-2 py-1.5">
             <div className="h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
-            <span className="text-[10px] font-medium text-amber-700">developer bot connecting workflow...</span>
+            <span className="text-[10px] font-medium text-amber-400">developer bot connecting workflow...</span>
           </div>
           <button
             type="button"
@@ -527,8 +667,8 @@ export function BookingCard({
         </div>
       )}
 
-      {/* billing step 6 */}
-      {currentStep === 6 && (
+      {/* ═══ STEP 7: billing (was step 6) ═══ */}
+      {currentStep === 7 && (
         <div className="mt-2">
           {isPaid ? (
             <div className="flex items-center gap-1.5 rounded-md bg-gradient-to-r from-primary/10 to-secondary/10 border border-primary/20 px-2 py-1.5">
@@ -536,16 +676,16 @@ export function BookingCard({
               <span className="text-[10px] font-bold text-primary">payment received</span>
             </div>
           ) : (
-            <div className="flex items-center gap-1.5 rounded-md bg-amber-50 border border-amber-200 px-2 py-1.5">
+            <div className="flex items-center gap-1.5 rounded-md bg-amber-500/10 border border-amber-500/20 px-2 py-1.5">
               <div className="h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
-              <span className="text-[10px] font-medium text-amber-700">waiting for client payment...</span>
+              <span className="text-[10px] font-medium text-amber-400">waiting for client payment...</span>
             </div>
           )}
         </div>
       )}
 
-      {/* survey step 7 */}
-      {currentStep === 7 && (
+      {/* ═══ STEP 8: satisfaction survey (was step 7) ═══ */}
+      {currentStep === 8 && (
         <div className="mt-2">
           {npsScore != null ? (
             <div className="space-y-1">
@@ -557,15 +697,15 @@ export function BookingCard({
               </div>
             </div>
           ) : (
-            <div className="flex items-center gap-1.5 rounded-md bg-blue-50 border border-blue-200 px-2 py-1.5">
+            <div className="flex items-center gap-1.5 rounded-md bg-blue-500/10 border border-blue-500/20 px-2 py-1.5">
               <div className="h-2 w-2 rounded-full bg-blue-400 animate-pulse" />
-              <span className="text-[10px] font-medium text-blue-700">waiting for client survey...</span>
+              <span className="text-[10px] font-medium text-blue-400">waiting for client survey...</span>
             </div>
           )}
         </div>
       )}
 
-      {/* postmortem step 8 (internal) */}
+      {/* postmortem step 9 (internal) */}
       {postmortemStatus && (
         <div className="mt-2 space-y-1.5">
           {npsScore != null && (
@@ -589,7 +729,7 @@ export function BookingCard({
               className={`flex items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-[10px] font-bold transition-colors ${
                 postmortemStatus === "reviewed"
                   ? "bg-gradient-to-r from-primary/10 to-secondary/10 border border-primary/20 text-primary"
-                  : "bg-amber-50 border border-amber-200 text-amber-700 hover:border-amber-300"
+                  : "bg-amber-500/10 border border-amber-500/20 text-amber-400 hover:border-amber-300"
               }`}
             >
               {postmortemStatus === "reviewed" ? (
@@ -607,7 +747,7 @@ export function BookingCard({
               )}
             </a>
           ) : (
-            <div className="flex items-center gap-1.5 rounded-md bg-gray-100 border border-gray-200 px-2 py-1.5">
+            <div className="flex items-center gap-1.5 rounded-md bg-surface-light border border-border px-2 py-1.5">
               <span className="text-[10px] text-muted">no pipeline run — postmortem unavailable</span>
             </div>
           )}
@@ -627,27 +767,14 @@ export function BookingCard({
               </span>
             </div>
           ) : (
-            <div className="flex items-center gap-1.5 rounded-md bg-blue-50 border border-blue-200 px-2 py-1.5">
+            <div className="flex items-center gap-1.5 rounded-md bg-blue-500/10 border border-blue-500/20 px-2 py-1.5">
               <div className="h-2 w-2 rounded-full bg-blue-400 animate-pulse" />
-              <span className="text-[10px] font-medium text-blue-700">
+              <span className="text-[10px] font-medium text-blue-400">
                 waiting for client to schedule next workflow {workflowLabel && `(${workflowLabel})`}
               </span>
             </div>
           )}
         </div>
-      )}
-
-      {/* start call — shown for claimed bookings on meeting day */}
-      {assignee && pipelineRunId && new Date(meetingTime).toDateString() === new Date().toDateString() && (
-        <a
-          href={`/dashboard/calls/live/${pipelineRunId}`}
-          className="mt-2 flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-primary to-secondary px-3 py-2 text-xs font-bold text-white shadow-sm transition-all hover:shadow-md active:scale-[0.98]"
-        >
-          <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-          </svg>
-          start call
-        </a>
       )}
 
       {/* assignee / claim */}
@@ -680,12 +807,12 @@ export function BookingCard({
               type="button"
               onClick={() => setShowEmployees(!showEmployees)}
               disabled={claiming}
-              className="w-full rounded-md border-2 border-dashed border-gray-300 py-1.5 text-xs font-medium text-muted hover:border-primary hover:text-primary transition-colors disabled:opacity-50"
+              className="w-full rounded-md border-2 border-dashed border-border py-1.5 text-xs font-medium text-muted hover:border-primary hover:text-primary transition-colors disabled:opacity-50"
             >
               {claiming ? "claiming..." : "claim"}
             </button>
             {showEmployees && (
-              <div className="absolute left-0 top-full z-10 mt-1 w-full rounded-lg border border-gray-200 bg-white shadow-lg">
+              <div className="absolute left-0 top-full z-10 mt-1 w-full rounded-lg border border-border bg-surface shadow-lg">
                 {employees.map((emp) => (
                   <button
                     key={emp.id}
@@ -724,7 +851,7 @@ export function BookingCard({
 
       {/* step advance/retreat arrows */}
       {currentStep && currentStep > 0 && (
-        <div className="mt-2 flex items-center justify-between rounded-md bg-gray-50 border border-gray-200 px-2 py-1">
+        <div className="mt-2 flex items-center justify-between rounded-md bg-surface-light border border-border px-2 py-1">
           <button
             type="button"
             onClick={handleRetreat}
@@ -737,12 +864,12 @@ export function BookingCard({
             </svg>
           </button>
           <span className="text-[10px] font-medium text-muted">
-            step {currentStep} of 7
+            step {currentStep} of 8
           </span>
           <button
             type="button"
             onClick={handleAdvance}
-            disabled={advancing || !currentStep || currentStep >= 7}
+            disabled={advancing || !currentStep || currentStep >= 8}
             className="rounded p-1 text-muted hover:text-primary hover:bg-primary/10 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
             title="advance one step"
           >
@@ -752,6 +879,106 @@ export function BookingCard({
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+function GapMeetingButton({
+  pipelineRunId,
+  action,
+  onComplete,
+}: {
+  pipelineRunId: string;
+  action: "start" | "complete";
+  onComplete: () => void;
+}) {
+  const [loading, setLoading] = useState(false);
+  const [notes, setNotes] = useState("");
+
+  async function handleClick() {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/pipeline/${pipelineRunId}/gap-meeting`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action,
+          ...(action === "complete" ? { notes: notes.trim() || null } : {}),
+        }),
+      });
+      if (res.ok) onComplete();
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="rounded-md border border-border bg-surface-light p-2 space-y-1.5">
+      <div className="flex items-center gap-1.5">
+        <div className="h-2.5 w-2.5 rounded-full bg-primary animate-pulse" />
+        <span className="text-[10px] font-bold text-primary">discovery meeting in progress</span>
+      </div>
+      <textarea
+        value={notes}
+        onChange={(e) => setNotes(e.target.value)}
+        placeholder="meeting notes — what did the client want changed?"
+        className="w-full rounded-md border border-border px-2 py-1.5 text-xs text-foreground placeholder:text-muted/50 focus:border-primary focus:outline-none resize-none"
+        rows={3}
+      />
+      <button
+        type="button"
+        onClick={handleClick}
+        disabled={loading}
+        className="w-full rounded-md bg-gradient-to-r from-primary to-secondary px-2 py-1.5 text-[10px] font-bold text-white transition-all hover:shadow-md active:scale-[0.98] disabled:opacity-50"
+      >
+        {loading ? "completing..." : "end meeting — start discovery build"}
+      </button>
+    </div>
+  );
+}
+
+const V2_STAGES = [
+  { key: "analyzing", label: "analyzing updates" },
+  { key: "gap-report", label: "generating gap report" },
+  { key: "building", label: "building v2" },
+] as const;
+
+function V2ProgressSteps({ status, elapsed }: { status: "analyzing" | "gap-report" | "building"; elapsed: string }) {
+  const activeIndex = V2_STAGES.findIndex((s) => s.key === status);
+
+  return (
+    <div className="space-y-0.5">
+      {V2_STAGES.map((stage, i) => {
+        const isDone = i < activeIndex;
+        const isActive = i === activeIndex;
+        const isPending = i > activeIndex;
+
+        return (
+          <div key={stage.key} className="flex items-center gap-1.5">
+            {isDone && (
+              <svg className="h-3 w-3 text-primary shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+              </svg>
+            )}
+            {isActive && (
+              <div className="h-2.5 w-2.5 rounded-full bg-amber-400 animate-pulse shrink-0 ml-[1px]" />
+            )}
+            {isPending && (
+              <div className="h-2 w-2 rounded-full bg-white/10 shrink-0 ml-[2px]" />
+            )}
+            <span
+              className={`text-[10px] ${
+                isDone ? "text-primary font-medium" : isActive ? "text-amber-400 font-medium" : "text-muted/40"
+              }`}
+            >
+              {stage.label}
+            </span>
+            {isActive && elapsed && (
+              <span className="text-[9px] font-mono text-amber-400/70 ml-auto">{elapsed}</span>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }

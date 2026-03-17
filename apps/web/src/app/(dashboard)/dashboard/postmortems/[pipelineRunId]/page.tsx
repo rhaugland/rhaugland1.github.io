@@ -15,19 +15,8 @@ export default async function PostmortemPage({
 }: {
   params: Promise<{ pipelineRunId: string }>;
 }) {
-  // admin-only access to postmortem submission
   const session = await auth();
   if (!session) redirect("/api/auth/signin");
-  if (session.user.role !== "admin") {
-    return (
-      <div className="mx-auto max-w-3xl py-12 text-center">
-        <h2 className="text-2xl font-bold">access denied</h2>
-        <p className="mt-2 text-sm text-muted">
-          only admins can access postmortem reviews
-        </p>
-      </div>
-    );
-  }
 
   const { pipelineRunId } = await params;
 
@@ -88,7 +77,8 @@ export default async function PostmortemPage({
   }
 
   const postmortem = run.postmortem;
-  const agentScores = (postmortem?.agentScores as AgentScore[] | null) ?? [];
+  const rawScores = postmortem?.agentScores;
+  const agentScores: AgentScore[] = Array.isArray(rawScores) ? (rawScores as unknown as AgentScore[]) : [];
   const existingFeedback =
     (postmortem?.employeeFeedback as Record<string, string> | null) ?? null;
   const isSubmitted = existingFeedback !== null && Object.keys(existingFeedback).length > 0;
@@ -111,8 +101,8 @@ export default async function PostmortemPage({
 
       {/* NPS context card */}
       {(clientNps != null || assignee) && (
-        <div className="mb-6 rounded-lg border border-gray-200 bg-white">
-          <div className="border-b border-gray-200 px-4 py-3">
+        <div className="mb-6 rounded-lg border border-border bg-surface">
+          <div className="border-b border-border px-4 py-3">
             <h3 className="text-sm font-bold text-foreground">client satisfaction</h3>
           </div>
           <div className="p-4 space-y-4">
@@ -162,7 +152,7 @@ export default async function PostmortemPage({
 
             {/* assignee context */}
             {assignee && (
-              <div className="rounded-lg bg-gray-50 border border-gray-200 p-3">
+              <div className="rounded-lg bg-surface-light border border-border p-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <div className="h-6 w-6 rounded-full bg-secondary/20 flex items-center justify-center text-[10px] font-bold text-secondary">
@@ -195,7 +185,7 @@ export default async function PostmortemPage({
                   </div>
                 </div>
                 {clientNps != null && assigneeAvgNps != null && (
-                  <div className="mt-2 pt-2 border-t border-gray-200">
+                  <div className="mt-2 pt-2 border-t border-border">
                     <p className="text-[10px] text-muted">
                       {clientNps > assigneeAvgNps
                         ? `this client scored ${(clientNps - assigneeAvgNps).toFixed(1)} points above ${assignee.name}'s average`

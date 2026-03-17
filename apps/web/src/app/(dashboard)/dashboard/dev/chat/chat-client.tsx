@@ -59,7 +59,7 @@ function ChatBubble({ message }: { message: NotificationMessage }) {
 
   return (
     <div className="flex justify-start">
-      <div className="max-w-[280px] rounded-2xl rounded-tl-sm bg-gray-100 px-4 py-2.5">
+      <div className="max-w-[280px] rounded-2xl rounded-tl-sm bg-white/10 px-4 py-2.5">
         <p className="text-sm text-foreground leading-relaxed">
           {beforeLink}
           {trackerUrl && (
@@ -111,7 +111,7 @@ function ThreadView({
     <button
       onClick={onSelect}
       className={`w-full border-b border-gray-100 px-4 py-3 text-left transition-colors ${
-        isSelected ? "bg-gradient-start/30" : "hover:bg-gray-50"
+        isSelected ? "bg-gradient-start/30" : "hover:bg-surface-light"
       }`}
     >
       <div className="flex items-center justify-between">
@@ -227,7 +227,7 @@ export function ChatClient() {
         <div className="flex items-center gap-2">
           <div
             className={`h-2 w-2 rounded-full ${
-              connected ? "bg-green-500" : "bg-gray-300"
+              connected ? "bg-green-500" : "bg-white/20"
             }`}
           />
           <span className="text-xs text-muted">
@@ -237,11 +237,11 @@ export function ChatClient() {
       </div>
 
       {/* phone-style container */}
-      <div className="overflow-hidden rounded-3xl border-2 border-gray-200 bg-white shadow-xl">
+      <div className="overflow-hidden rounded-3xl border-2 border-border bg-surface shadow-xl">
         <div className="flex h-[600px]">
           {/* thread list (left panel) */}
-          <div className="w-[200px] border-r border-gray-200 overflow-y-auto">
-            <div className="border-b border-gray-200 bg-gray-50 px-4 py-2">
+          <div className="w-[200px] border-r border-border overflow-y-auto">
+            <div className="border-b border-border bg-surface-light px-4 py-2">
               <p className="text-xs font-semibold text-muted">threads</p>
             </div>
             {threads.length === 0 && (
@@ -262,7 +262,7 @@ export function ChatClient() {
           {/* chat messages (right panel) */}
           <div className="flex flex-1 flex-col">
             {/* chat header */}
-            <div className="border-b border-gray-200 bg-gray-50 px-4 py-2.5">
+            <div className="border-b border-border bg-surface-light px-4 py-2.5">
               {selectedThread ? (
                 <div className="flex items-center gap-2">
                   <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-xs font-bold text-white">
@@ -298,7 +298,7 @@ export function ChatClient() {
             </div>
 
             {/* bottom bar */}
-            <div className="border-t border-gray-200 bg-gray-50 px-4 py-2.5">
+            <div className="border-t border-border bg-surface-light px-4 py-2.5">
               <p className="text-center text-[10px] text-muted">
                 outbound only — these messages simulate sms to your client
               </p>

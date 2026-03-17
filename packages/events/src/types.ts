@@ -23,7 +23,8 @@ export type EventType =
   | "build.message"
   | "build.paused"
   | "build.resumed"
-  | "analyst.incremental";
+  | "analyst.incremental"
+  | "gap.meeting.complete";
 
 export interface BaseEvent {
   type: EventType;
@@ -249,6 +250,15 @@ export interface AnalystIncrementalEvent extends BaseEvent {
   };
 }
 
+export interface GapMeetingCompleteEvent extends BaseEvent {
+  type: "gap.meeting.complete";
+  data: {
+    prototypeId: string;
+    version: number;
+    meetingNotes: string | null;
+  };
+}
+
 export type SlushieEvent =
   | TranscriptChunkEvent
   | CoachingSuggestionEvent
@@ -274,4 +284,5 @@ export type SlushieEvent =
   | BuildMessageEvent
   | BuildPausedEvent
   | BuildResumedEvent
-  | AnalystIncrementalEvent;
+  | AnalystIncrementalEvent
+  | GapMeetingCompleteEvent;

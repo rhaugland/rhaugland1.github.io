@@ -1,18 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, type KeyboardEvent } from "react";
-import { useRouter } from "next/navigation";
-
-interface TimeSlot {
-  start: string;
-  label: string;
-}
-
-interface DaySlots {
-  date: string;
-  label: string;
-  times: TimeSlot[];
-}
+import { useState, useRef, type KeyboardEvent } from "react";
 
 type Plan = "SINGLE_SCOOP" | "DOUBLE_BLEND" | "TRIPLE_FREEZE";
 
@@ -40,7 +28,6 @@ const COMMON_TOOLS = [
 ];
 
 export function BookingForm() {
-  const router = useRouter();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [businessName, setBusinessName] = useState("");
@@ -49,27 +36,10 @@ export function BookingForm() {
   const [techStack, setTechStack] = useState<string[]>([]);
   const [techInput, setTechInput] = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
-  const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
-  const [slots, setSlots] = useState<DaySlots[]>([]);
-  const [loadingSlots, setLoadingSlots] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [booked, setBooked] = useState<{ slug: string; bookingId: string } | null>(null);
   const techInputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    fetch("/api/booking/slots")
-      .then((res) => res.json())
-      .then((data) => {
-        setSlots(data.slots ?? []);
-        if (data.slots?.length > 0) {
-          setSelectedDay(data.slots[0].date);
-        }
-      })
-      .catch(() => setError("couldn't load available times"))
-      .finally(() => setLoadingSlots(false));
-  }, []);
 
   function addTag(tag: string) {
     const cleaned = tag.trim().toLowerCase();
@@ -101,10 +71,6 @@ export function BookingForm() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!selectedSlot) {
-      setError("please pick a time");
-      return;
-    }
     setSubmitting(true);
     setError(null);
 
@@ -122,7 +88,6 @@ export function BookingForm() {
           businessName,
           plan,
           description: fullDescription,
-          meetingTime: selectedSlot,
         }),
       });
 
@@ -150,21 +115,9 @@ export function BookingForm() {
   const maxTools = planOptions.find((o) => o.value === plan)!.maxTools;
   const atToolLimit = techStack.length >= maxTools;
 
-  const currentDaySlots = slots.find((s) => s.date === selectedDay);
-
   const trackingUrl = booked
     ? `${typeof window !== "undefined" ? window.location.origin : ""}/track/${booked.slug}`
     : "";
-
-  const meetingLabel = selectedSlot
-    ? new Date(selectedSlot).toLocaleDateString("en-US", {
-        weekday: "long",
-        month: "long",
-        day: "numeric",
-        hour: "numeric",
-        minute: "2-digit",
-      })
-    : null;
 
   const [copied, setCopied] = useState(false);
 
@@ -177,22 +130,14 @@ export function BookingForm() {
           </svg>
         </div>
         <div>
-          <h3 className="text-2xl font-extrabold text-foreground">blend booked!</h3>
+          <h3 className="text-2xl font-extrabold text-foreground">we're on it!</h3>
           <p className="mt-2 text-sm text-muted">
-            you're all set, {name}. we'll see you at your meeting.
+            we're already building your first prototype, {name}. your rep will reach out to schedule a discovery call.
           </p>
         </div>
 
-        {/* meeting time */}
-        {meetingLabel && (
-          <div className="rounded-xl bg-gradient-to-r from-primary/5 to-secondary/5 border border-primary/15 px-4 py-3">
-            <p className="text-xs font-medium text-muted">your meeting</p>
-            <p className="mt-0.5 text-sm font-bold text-foreground">{meetingLabel}</p>
-          </div>
-        )}
-
         {/* tracking link */}
-        <div className="rounded-xl bg-white border border-gray-200 p-4 text-left space-y-2">
+        <div className="rounded-xl bg-surface border border-border p-4 text-left space-y-2">
           <p className="text-xs font-medium text-muted">your tracking link</p>
           <button
             type="button"
@@ -201,12 +146,12 @@ export function BookingForm() {
               setCopied(true);
               setTimeout(() => setCopied(false), 2000);
             }}
-            className="w-full rounded-lg border border-gray-200 bg-background px-3 py-2.5 text-left text-xs text-foreground break-all active:bg-gray-100 transition-colors"
+            className="w-full rounded-lg border border-border bg-surface-light px-3 py-2.5 text-left text-xs text-foreground break-all active:bg-white/10 transition-colors"
           >
             {trackingUrl}
           </button>
           <p className="text-xs text-muted">
-            {copied ? "copied!" : "tap to copy — bookmark it to track every step from meeting to delivery."}
+            {copied ? "copied!" : "tap to copy — bookmark it to track every step from build to delivery."}
           </p>
         </div>
 
@@ -232,7 +177,7 @@ export function BookingForm() {
           required
           value={name}
           onChange={(e) => setName(e.target.value)}
-          className="w-full rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+          className="w-full rounded-lg border border-border bg-surface px-4 py-3 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
           placeholder="your name"
         />
       </div>
@@ -247,7 +192,7 @@ export function BookingForm() {
           required
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className="w-full rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+          className="w-full rounded-lg border border-border bg-surface px-4 py-3 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
           placeholder="you@company.com"
         />
       </div>
@@ -262,7 +207,7 @@ export function BookingForm() {
           required
           value={businessName}
           onChange={(e) => setBusinessName(e.target.value)}
-          className="w-full rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+          className="w-full rounded-lg border border-border bg-surface px-4 py-3 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
           placeholder="your business"
         />
       </div>
@@ -279,7 +224,6 @@ export function BookingForm() {
               type="button"
               onClick={() => {
                 setPlan(opt.value);
-                // trim tags if switching to a plan with fewer tools
                 if (techStack.length > opt.maxTools) {
                   setTechStack(techStack.slice(0, opt.maxTools));
                 }
@@ -287,7 +231,7 @@ export function BookingForm() {
               className={`rounded-lg border-2 px-3 py-3 text-center transition-all ${
                 plan === opt.value
                   ? "border-primary bg-primary text-white"
-                  : "border-gray-200 bg-white text-foreground hover:border-primary/50"
+                  : "border-border bg-surface text-foreground hover:border-primary/50"
               }`}
             >
               <span className="block text-sm font-medium">{opt.label}</span>
@@ -313,7 +257,7 @@ export function BookingForm() {
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           rows={3}
-          className="w-full rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary resize-none"
+          className="w-full rounded-lg border border-border bg-surface px-4 py-3 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary resize-none"
           placeholder="tell us about the spreadsheet, the copy-paste nightmare, the thing that eats your afternoon..."
         />
       </div>
@@ -323,7 +267,7 @@ export function BookingForm() {
         <label className="block text-sm font-medium text-foreground mb-1">
           what tools do you use?
         </label>
-        <div className="rounded-lg border border-gray-200 bg-white px-3 py-2 focus-within:border-primary focus-within:ring-1 focus-within:ring-primary">
+        <div className="rounded-lg border border-border bg-surface px-3 py-2 focus-within:border-primary focus-within:ring-1 focus-within:ring-primary">
           <div className="flex flex-wrap gap-1.5 mb-1">
             {techStack.map((tag) => (
               <span
@@ -360,7 +304,7 @@ export function BookingForm() {
             )}
             {/* suggestions dropdown */}
             {showSuggestions && filteredSuggestions.length > 0 && (
-              <div className="absolute left-0 top-full z-10 mt-1 w-full rounded-lg border border-gray-200 bg-white shadow-lg">
+              <div className="absolute left-0 top-full z-10 mt-1 w-full rounded-lg border border-border bg-surface shadow-lg">
                 {filteredSuggestions.map((suggestion) => (
                   <button
                     key={suggestion}
@@ -381,61 +325,6 @@ export function BookingForm() {
         </p>
       </div>
 
-      {/* calendar picker */}
-      <div>
-        <label className="block text-sm font-medium text-foreground mb-2">
-          pick a time
-        </label>
-        {loadingSlots ? (
-          <div className="text-center py-8 text-sm text-muted">
-            loading available times...
-          </div>
-        ) : slots.length === 0 ? (
-          <div className="text-center py-8 text-sm text-muted">
-            no available times right now. check back soon.
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {/* day tabs */}
-            <div className="flex gap-1.5 overflow-x-auto pb-1">
-              {slots.map((day) => (
-                <button
-                  key={day.date}
-                  type="button"
-                  onClick={() => setSelectedDay(day.date)}
-                  className={`shrink-0 rounded-lg px-3 py-2 text-xs font-medium transition-all ${
-                    selectedDay === day.date
-                      ? "bg-foreground text-white"
-                      : "bg-white border border-gray-200 text-foreground hover:border-foreground/30"
-                  }`}
-                >
-                  {day.label}
-                </button>
-              ))}
-            </div>
-            {/* time slots */}
-            {currentDaySlots && (
-              <div className="grid grid-cols-4 gap-2">
-                {currentDaySlots.times.map((time) => (
-                  <button
-                    key={time.start}
-                    type="button"
-                    onClick={() => setSelectedSlot(time.start)}
-                    className={`rounded-lg border-2 px-2 py-2 text-sm font-medium transition-all ${
-                      selectedSlot === time.start
-                        ? "border-primary bg-primary text-white"
-                        : "border-gray-200 bg-white text-foreground hover:border-primary/50"
-                    }`}
-                  >
-                    {time.label}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
       {/* error */}
       {error && (
         <p className="text-sm text-primary font-medium">{error}</p>
@@ -444,10 +333,10 @@ export function BookingForm() {
       {/* submit */}
       <button
         type="submit"
-        disabled={submitting || !selectedSlot}
+        disabled={submitting}
         className="w-full rounded-lg bg-gradient-to-r from-primary to-secondary py-3.5 text-sm font-bold text-white shadow-lg transition-all hover:shadow-xl hover:scale-[1.01] disabled:opacity-50 disabled:cursor-not-allowed"
       >
-        {submitting ? "booking..." : "book your blend →"}
+        {submitting ? "submitting..." : "start building →"}
       </button>
     </form>
   );

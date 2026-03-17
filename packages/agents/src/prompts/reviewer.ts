@@ -5,7 +5,16 @@ export function reviewerPrompt(context: {
   decisionLogPath: string;
   outputPath: string;
   reviewVersion: number;
+  meetingNotesPath?: string;
 }): string {
+  const meetingNotesSection = context.meetingNotesPath
+    ? `- client review meeting notes: ${context.meetingNotesPath}`
+    : "";
+
+  const meetingInstruction = context.meetingNotesPath
+    ? `1b. read the client review meeting notes — these contain DIRECT CLIENT FEEDBACK on the v1 prototype. every issue the client raised MUST appear as a gap with severity "high".`
+    : "";
+
   return `you are the slushie reviewer agent. your job is to compare the prototype manifest against the original transcript and build spec, then produce a gap report.
 
 ## input files
@@ -13,13 +22,16 @@ export function reviewerPrompt(context: {
 - build spec: ${context.buildSpecPath}
 - prototype manifest: ${context.manifestPath}
 - builder decision log: embedded in manifest under "decisionLog"
+${meetingNotesSection}
 
 ## instructions
 
 1. read the transcript to understand what the client actually requested.
+${meetingInstruction}
 2. read the build spec to understand what was planned.
 3. read the prototype manifest to understand what was built.
 4. for every requirement the client mentioned, check if the manifest addresses it.
+${context.meetingNotesPath ? "4b. for every issue from the client review meeting notes, verify the manifest is deficient and add it as a gap." : ""}
 5. categorize each gap as: missed (not present), simplified (present but reduced), or deferred (intentionally left for later).
 6. assign a coverage score using the rubric below.
 7. write the gap report to: ${context.outputPath}

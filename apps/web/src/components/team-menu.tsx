@@ -61,15 +61,16 @@ export function TeamMenu() {
         className="flex items-center justify-center rounded-full p-1 text-muted hover:text-white transition"
         title="manage team"
       >
-        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
+          <circle cx="12" cy="8" r="4" />
+          <path d="M5.5 21a6.5 6.5 0 0 1 13 0" />
         </svg>
       </button>
 
       {/* dropdown */}
       {open && (
-        <div className="absolute right-0 top-full z-50 mt-2 w-72 rounded-lg border border-gray-200 bg-white shadow-lg">
-          <div className="border-b border-gray-100 px-4 py-3">
+        <div className="absolute right-0 top-full z-50 mt-2 w-72 rounded-lg border border-border bg-surface shadow-lg">
+          <div className="border-b border-border px-4 py-3">
             <h4 className="text-sm font-bold text-foreground">slushie team</h4>
           </div>
 
@@ -95,7 +96,7 @@ export function TeamMenu() {
           </div>
 
           {/* add new employee */}
-          <div className="border-t border-gray-100 px-4 py-3">
+          <div className="border-t border-border px-4 py-3">
             <p className="mb-2 text-xs font-semibold text-muted">add employee</p>
             <div className="space-y-2">
               <input
@@ -103,14 +104,14 @@ export function TeamMenu() {
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
                 placeholder="name"
-                className="w-full rounded border border-gray-300 px-2 py-1.5 text-sm focus:border-primary focus:outline-none"
+                className="w-full rounded border border-border bg-surface-light px-2 py-1.5 text-sm focus:border-primary focus:outline-none"
               />
               <input
                 type="email"
                 value={newEmail}
                 onChange={(e) => setNewEmail(e.target.value)}
                 placeholder="email (optional)"
-                className="w-full rounded border border-gray-300 px-2 py-1.5 text-sm focus:border-primary focus:outline-none"
+                className="w-full rounded border border-border bg-surface-light px-2 py-1.5 text-sm focus:border-primary focus:outline-none"
               />
               <button
                 onClick={handleAdd}

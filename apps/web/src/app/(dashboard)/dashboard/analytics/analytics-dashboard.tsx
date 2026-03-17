@@ -77,7 +77,7 @@ function Bar({
 }) {
   const pct = max > 0 ? (value / max) * 100 : 0;
   return (
-    <div className="h-5 w-full rounded-full bg-gray-100 overflow-hidden">
+    <div className="h-5 w-full rounded-full bg-white/5 overflow-hidden">
       <div
         className={`h-full rounded-full bg-gradient-to-r ${color} transition-all duration-500`}
         style={{ width: `${Math.max(pct, 2)}%` }}
@@ -120,7 +120,7 @@ export function AnalyticsDashboard({
       </div>
 
       {/* tabs */}
-      <div className="flex gap-1 mb-6 rounded-lg bg-gray-100 p-1 w-fit">
+      <div className="flex gap-1 mb-6 rounded-lg bg-white/5 p-1 w-fit">
         {tabs.map((t) => (
           <button
             key={t.key}
@@ -128,7 +128,7 @@ export function AnalyticsDashboard({
             onClick={() => setTab(t.key)}
             className={`rounded-md px-4 py-2 text-xs font-bold transition-all ${
               tab === t.key
-                ? "bg-white text-foreground shadow-sm"
+                ? "bg-surface text-foreground shadow-sm"
                 : "text-muted hover:text-foreground"
             }`}
           >
@@ -400,7 +400,7 @@ export function AnalyticsDashboard({
                         color="from-amber-400 to-orange-500"
                       />
                     ) : (
-                      <div className="h-5 w-full rounded-full bg-gray-50" />
+                      <div className="h-5 w-full rounded-full bg-surface-light" />
                     )}
                   </div>
                   <span className="w-12 text-right text-xs font-bold text-foreground">
@@ -448,7 +448,7 @@ export function AnalyticsDashboard({
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
-                  <tr className="border-b border-gray-200">
+                  <tr className="border-b border-border">
                     <th className="text-left py-2 pr-4 font-bold text-muted">
                       employee
                     </th>
@@ -473,7 +473,7 @@ export function AnalyticsDashboard({
                   {employeeStats.map((emp) => (
                     <tr
                       key={emp.id}
-                      className="border-b border-gray-100 hover:bg-gray-50 transition-colors"
+                      className="border-b border-border hover:bg-surface-light transition-colors"
                     >
                       <td className="py-3 pr-4">
                         <div className="flex items-center gap-2">
@@ -772,7 +772,7 @@ function KpiCard({
   accent?: string;
 }) {
   return (
-    <div className="rounded-xl bg-white border border-gray-200 p-4">
+    <div className="rounded-xl bg-surface border border-border p-4">
       <p className="text-[10px] font-bold text-muted uppercase tracking-wide">
         {label}
       </p>
@@ -794,7 +794,7 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-xl bg-white border border-gray-200 p-5">
+    <div className="rounded-xl bg-surface border border-border p-5">
       <div className="mb-4">
         <h2 className="text-sm font-extrabold text-foreground">{title}</h2>
         {subtitle && <p className="text-[10px] text-muted mt-0.5">{subtitle}</p>}

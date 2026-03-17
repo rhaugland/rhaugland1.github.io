@@ -2,18 +2,21 @@ import { NextResponse } from "next/server";
 import { prisma } from "@slushie/db";
 import { nanoid } from "nanoid";
 import bcrypt from "bcryptjs";
-import { createCalendarEvent } from "@/lib/google-calendar";
 import { sendBookingConfirmed } from "@/lib/email";
 import { generateTempPassword } from "@/lib/tracker-auth";
+import { createEventQueue, createEvent } from "@slushie/events";
+
+const pipelineQueue = createEventQueue("pipeline");
 
 const BOOKING_STEPS = [
-  { step: 1, label: "meeting confirmed", subtitle: "your blend is scheduled. we'll see you there." },
-  { step: 2, label: "meeting", subtitle: "we're on the call. workflow discovery in progress." },
-  { step: 3, label: "slushie build review", subtitle: "our team is reviewing the build for quality." },
-  { step: 4, label: "client build approval", subtitle: "your turn. take a look and let us know." },
-  { step: 5, label: "plug-in", subtitle: "connecting to your tools. almost there." },
-  { step: 6, label: "billing", subtitle: "invoice sent. simple and transparent." },
-  { step: 7, label: "satisfaction survey", subtitle: "how'd we do? we want to keep getting better." },
+  { step: 1, label: "intake build", subtitle: "we're already building your first prototype." },
+  { step: 2, label: "schedule discovery", subtitle: "your rep will reach out to schedule a discovery call." },
+  { step: 3, label: "discovery meeting", subtitle: "let's walk through your workflow together." },
+  { step: 4, label: "discovery build", subtitle: "building an improved version based on our conversation." },
+  { step: 5, label: "client build approval", subtitle: "your turn. take a look and let us know." },
+  { step: 6, label: "plug-in", subtitle: "connecting to your tools. almost there." },
+  { step: 7, label: "billing", subtitle: "invoice sent. simple and transparent." },
+  { step: 8, label: "satisfaction survey", subtitle: "how'd we do? we want to keep getting better." },
 ];
 
 const VALID_PLANS = ["SINGLE_SCOOP", "DOUBLE_BLEND", "TRIPLE_FREEZE"] as const;
@@ -21,10 +24,10 @@ const VALID_PLANS = ["SINGLE_SCOOP", "DOUBLE_BLEND", "TRIPLE_FREEZE"] as const;
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { name, email, businessName, plan, description, meetingTime } = body;
+    const { name, email, businessName, plan, description } = body;
 
-    // validate required fields
-    if (!name || !email || !businessName || !plan || !description || !meetingTime) {
+    // validate required fields (meetingTime no longer required)
+    if (!name || !email || !businessName || !plan || !description) {
       return NextResponse.json(
         { error: "all fields are required" },
         { status: 400 }
@@ -46,55 +49,13 @@ export async function POST(request: Request) {
       );
     }
 
-    // validate meeting time is in the future
-    const meetingDate = new Date(meetingTime);
-    if (isNaN(meetingDate.getTime()) || meetingDate < new Date()) {
-      return NextResponse.json(
-        { error: "meeting time must be in the future" },
-        { status: 400 }
-      );
-    }
-
     const planLabels: Record<string, string> = {
       SINGLE_SCOOP: "single scoop",
       DOUBLE_BLEND: "double blend",
       TRIPLE_FREEZE: "triple freeze",
     };
 
-    // 1. check for existing booking at this time (race condition guard)
-    const existingBooking = await prisma.booking.findFirst({
-      where: {
-        meetingTime: meetingDate,
-        status: "CONFIRMED",
-      },
-    });
-
-    if (existingBooking) {
-      return NextResponse.json(
-        { error: "this time slot was just taken. please pick another." },
-        { status: 409 }
-      );
-    }
-
-    // 2. create Google Calendar event (sends invite to customer)
-    let calendarEventId: string | null = null;
-    try {
-      calendarEventId = await createCalendarEvent({
-        summary: `slushie blend — ${businessName} (${planLabels[plan]})`,
-        description: `customer: ${name} (${email})\nbusiness: ${businessName}\nplan: ${planLabels[plan]}\n\nworkflow description:\n${description}`,
-        startTime: meetingTime,
-        attendeeEmail: email,
-      });
-    } catch (calErr: unknown) {
-      const message = calErr instanceof Error ? calErr.message : "unknown error";
-      console.error("google calendar event creation failed:", message);
-      return NextResponse.json(
-        { error: "failed to schedule meeting. please try again." },
-        { status: 500 }
-      );
-    }
-
-    // 3. create Client record
+    // 1. create Client record
     const client = await prisma.client.create({
       data: {
         name: businessName,
@@ -104,7 +65,7 @@ export async function POST(request: Request) {
       },
     });
 
-    // 4. create Booking record
+    // 2. create Booking record (no meetingTime — scheduled later via discovery)
     const booking = await prisma.booking.create({
       data: {
         name,
@@ -112,13 +73,31 @@ export async function POST(request: Request) {
         businessName,
         plan,
         description,
-        meetingTime: meetingDate,
-        calendarEventId,
         clientId: client.id,
       },
     });
 
-    // 5. create Tracker with 7 steps, step 1 done + temp password
+    // 3. create Call record with booking description as transcript
+    const call = await prisma.call.create({
+      data: {
+        clientId: client.id,
+        startedAt: new Date(),
+        endedAt: new Date(),
+        transcript: description,
+        coachingLog: [],
+      },
+    });
+
+    // 4. create PipelineRun
+    const pipelineRun = await prisma.pipelineRun.create({
+      data: {
+        clientId: client.id,
+        callId: call.id,
+        status: "RUNNING",
+      },
+    });
+
+    // 5. create Tracker with 8 steps, step 1 active (building intake prototype)
     const slug = nanoid(21);
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 30);
@@ -128,13 +107,14 @@ export async function POST(request: Request) {
 
     const steps = BOOKING_STEPS.map((s, i) => ({
       ...s,
-      status: i === 0 ? "done" : "pending",
-      completedAt: i === 0 ? new Date().toISOString() : null,
+      status: i === 0 ? "active" : "pending",
+      completedAt: null as string | null,
     }));
 
     const tracker = await prisma.tracker.create({
       data: {
         bookingId: booking.id,
+        pipelineRunId: pipelineRun.id,
         slug,
         currentStep: 1,
         steps,
@@ -144,13 +124,22 @@ export async function POST(request: Request) {
       },
     });
 
-    // send confirmation email with tracker link + temp password
+    // 6. dispatch call.ended event to trigger the analyst → builder pipeline
+    await pipelineQueue.add(
+      "call.ended",
+      createEvent("call.ended", pipelineRun.id, {
+        callId: call.id,
+        clientId: client.id,
+        duration: 0,
+      })
+    );
+
+    // send confirmation email — updated message about immediate build
     sendBookingConfirmed({
       to: email,
       name,
       businessName,
       planLabel: planLabels[plan] ?? plan,
-      meetingTime,
       slug,
       tempPassword,
     }).catch((err) => console.error("[email] booking confirmed failed:", err));

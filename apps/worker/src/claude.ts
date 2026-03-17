@@ -1,8 +1,5 @@
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
+import { spawn } from "node:child_process";
 import { logger } from "./logger";
-
-const execFileAsync = promisify(execFile);
 
 interface ClaudeCodeOptions {
   prompt: string;
@@ -31,48 +28,80 @@ export async function invokeClaudeCode(
     "invoking claude code"
   );
 
-  try {
-    const { stdout, stderr } = await execFileAsync(
+  const env = Object.fromEntries(
+    Object.entries(process.env).filter(([k]) => !k.startsWith("CLAUDE"))
+  );
+
+  return new Promise<ClaudeCodeResult>((resolve, reject) => {
+    const child = spawn(
       "claude",
-      ["-p", prompt, "--output-format", "json"],
+      ["-p", prompt, "--output-format", "json", "--dangerously-skip-permissions"],
       {
         cwd: workingDirectory,
-        timeout: timeoutMs,
-        maxBuffer: 10 * 1024 * 1024, // 10mb
-        env: { ...process.env },
+        env,
+        detached: true,
+        stdio: ["ignore", "pipe", "pipe"],
       }
     );
 
-    if (stderr) {
-      agentLogger.warn({ stderr }, "claude code stderr output");
-    }
+    let stdout = "";
+    let stderr = "";
+    let killed = false;
 
-    agentLogger.info(
-      { outputLength: stdout.length },
-      "claude code completed"
-    );
+    const timer = setTimeout(() => {
+      killed = true;
+      try {
+        process.kill(-child.pid!, "SIGTERM");
+      } catch {
+        child.kill("SIGTERM");
+      }
+    }, timeoutMs);
 
-    return { output: stdout, stderr: stderr || "", exitCode: 0 };
-  } catch (error: unknown) {
-    const err = error as {
-      code?: number | string;
-      killed?: boolean;
-      stderr?: string;
-      signal?: string;
-    };
+    child.stdout.on("data", (data: Buffer) => {
+      stdout += data.toString();
+    });
 
-    if (err.killed) {
-      agentLogger.error(
-        { signal: err.signal, timeoutMs },
-        "claude code session timed out or was killed"
+    child.stderr.on("data", (data: Buffer) => {
+      stderr += data.toString();
+    });
+
+    child.on("error", (err: Error) => {
+      clearTimeout(timer);
+      agentLogger.error({ error: err.message }, "claude code spawn error");
+      reject(err);
+    });
+
+    child.on("close", (code: number | null) => {
+      clearTimeout(timer);
+
+      if (killed) {
+        agentLogger.error(
+          { timeoutMs },
+          "claude code session timed out or was killed"
+        );
+        reject(new Error(`claude code timed out after ${timeoutMs}ms`));
+        return;
+      }
+
+      if (code !== 0) {
+        agentLogger.error(
+          { exitCode: code, stderr },
+          "claude code session failed"
+        );
+        reject(new Error(`claude code exited with code ${code}: ${stderr}`));
+        return;
+      }
+
+      if (stderr) {
+        agentLogger.warn({ stderr }, "claude code stderr output");
+      }
+
+      agentLogger.info(
+        { outputLength: stdout.length },
+        "claude code completed"
       );
-      throw new Error(`claude code timed out after ${timeoutMs}ms`);
-    }
 
-    agentLogger.error(
-      { exitCode: err.code, stderr: err.stderr },
-      "claude code session failed"
-    );
-    throw error;
-  }
+      resolve({ output: stdout, stderr, exitCode: 0 });
+    });
+  });
 }

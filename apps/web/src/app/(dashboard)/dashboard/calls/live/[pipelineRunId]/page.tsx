@@ -92,7 +92,7 @@ function DraggablePanel({
 
   return (
     <div
-      className="absolute rounded-xl border border-gray-200 bg-white shadow-lg overflow-hidden flex flex-col"
+      className="absolute rounded-xl border border-border bg-surface shadow-lg overflow-hidden flex flex-col"
       style={{
         left: pos.x,
         top: pos.y,
@@ -104,7 +104,7 @@ function DraggablePanel({
       {/* header — drag handle */}
       <div
         onMouseDown={onMouseDownDrag}
-        className="flex cursor-grab items-center justify-between border-b border-gray-100 bg-gray-50 px-4 py-2 select-none active:cursor-grabbing"
+        className="flex cursor-grab items-center justify-between border-b border-border bg-surface-light px-4 py-2 select-none active:cursor-grabbing"
       >
         <div className="flex items-center gap-2">
           <h3 className="text-sm font-semibold text-foreground">{title}</h3>
@@ -299,9 +299,9 @@ export default function LiveCallPage() {
   } as const;
 
   return (
-    <div className="relative h-[calc(100vh-64px)] overflow-hidden bg-gray-100">
+    <div className="relative h-[calc(100vh-64px)] overflow-hidden bg-white/5">
       {/* top bar */}
-      <div className="absolute left-0 right-0 top-0 z-20 flex items-center justify-between bg-white/90 backdrop-blur px-6 py-3 border-b border-gray-200">
+      <div className="absolute left-0 right-0 top-0 z-20 flex items-center justify-between bg-surface/90 backdrop-blur px-6 py-3 border-b border-border">
         <div className="flex items-center gap-4">
           {isLive && (
             <>
@@ -340,7 +340,7 @@ export default function LiveCallPage() {
           {isEnded && (
             <button
               onClick={() => router.push("/dashboard/calls")}
-              className="rounded-lg border border-gray-300 px-5 py-2 text-sm font-medium text-muted transition hover:border-gray-400"
+              className="rounded-lg border border-border px-5 py-2 text-sm font-medium text-muted transition hover:border-gray-400"
             >
               back to calls
             </button>

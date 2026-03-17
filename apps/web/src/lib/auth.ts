@@ -8,12 +8,17 @@ const ADMIN_EMAILS = (process.env.ADMIN_EMAILS ?? "").split(",").map((e) => e.tr
 const isDev = process.env.NODE_ENV !== "production";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const providers: any[] = [
-  Google({
-    clientId: process.env.GOOGLE_CLIENT_ID!,
-    clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-  }),
-];
+const providers: any[] = [];
+
+// Only add Google OAuth when real credentials are configured
+if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_ID !== "placeholder") {
+  providers.push(
+    Google({
+      clientId: process.env.GOOGLE_CLIENT_ID,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+    }),
+  );
+}
 
 // Dev-only credentials provider — bypasses Google OAuth for local testing
 if (isDev) {

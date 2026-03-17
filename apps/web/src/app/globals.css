@@ -3,12 +3,12 @@
 @theme {
   --color-primary: #DC2626;
   --color-secondary: #3B5BDB;
-  --color-background: #F8FAFC;
-  --color-foreground: #1e293b;
+  --color-background: #0f0f0f;
+  --color-foreground: #f1f5f9;
   --color-muted: #94a3b8;
-  --color-gradient-start: #FEE2E2;
-  --color-gradient-mid: #EDE9FE;
-  --color-gradient-end: #DBEAFE;
+  --color-surface: #1a1a1a;
+  --color-surface-light: #242424;
+  --color-border: rgba(255, 255, 255, 0.1);
   --font-primary: 'Inter', sans-serif;
 }
 
@@ -20,7 +20,7 @@ body {
   color: var(--color-foreground);
 }
 
-/* gradient background utility */
+/* gradient background utility — dark version matching landing page */
 .slushie-gradient {
-  background: linear-gradient(135deg, var(--color-gradient-start), var(--color-gradient-mid), var(--color-gradient-end));
+  background: #0f0f0f;
 }

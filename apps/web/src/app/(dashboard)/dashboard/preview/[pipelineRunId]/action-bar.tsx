@@ -63,7 +63,7 @@ export function ActionBar({ pipelineRunId, status }: ActionBarProps) {
 
   if (status === "COMPLETED") {
     return (
-      <div className="flex items-center justify-between border-t border-gray-200 bg-green-50 px-6 py-4">
+      <div className="flex items-center justify-between border-t border-border bg-green-50 px-6 py-4">
         <p className="text-sm font-medium text-green-700">approved and delivered</p>
         <a
           href={`/dashboard/postmortems/${pipelineRunId}`}
@@ -77,7 +77,7 @@ export function ActionBar({ pipelineRunId, status }: ActionBarProps) {
 
   if (!isActionable) {
     return (
-      <div className="flex items-center border-t border-gray-200 bg-gray-50 px-6 py-4">
+      <div className="flex items-center border-t border-border bg-surface-light px-6 py-4">
         <p className="text-sm text-muted">
           {status === "STALLED"
             ? "pipeline is stalled — check the worker logs"
@@ -90,7 +90,7 @@ export function ActionBar({ pipelineRunId, status }: ActionBarProps) {
   }
 
   return (
-    <div className="border-t border-gray-200 bg-white px-6 py-4">
+    <div className="border-t border-border bg-surface px-6 py-4">
       {error && (
         <p className="mb-3 text-sm text-red-600">{error}</p>
       )}
@@ -105,7 +105,7 @@ export function ActionBar({ pipelineRunId, status }: ActionBarProps) {
         <button
           onClick={handleRevise}
           disabled={loading !== null}
-          className="rounded-lg border border-gray-300 bg-white px-5 py-2.5 text-sm font-medium text-foreground hover:bg-gray-50 disabled:opacity-50"
+          className="rounded-lg border border-border bg-surface px-5 py-2.5 text-sm font-medium text-foreground hover:bg-surface-light disabled:opacity-50"
         >
           {loading === "revise" ? "requesting..." : "request revisions"}
         </button>

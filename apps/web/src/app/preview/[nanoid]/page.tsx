@@ -34,9 +34,9 @@ export default async function PreviewPage({
   // expired links get a friendly message — 30 day expiry per spec
   if (tracker.expiresAt && tracker.expiresAt < new Date()) {
     return (
-      <main className="flex min-h-screen items-center justify-center slushie-gradient">
+      <main className="flex min-h-screen items-center justify-center bg-background">
         <div className="text-center">
-          <h1 className="text-3xl font-extrabold text-primary">slushie</h1>
+          <h1 className="text-3xl font-extrabold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">slushie</h1>
           <p className="mt-4 text-foreground">this prototype link has expired.</p>
           <p className="mt-2 text-muted text-sm">
             reach out to your slushie contact for a fresh one.
@@ -54,6 +54,7 @@ export default async function PreviewPage({
     version: number;
     previewUrl: string | null;
     manifest: unknown;
+    htmlBundle: string | null;
   } | null = null;
 
   if (pipelineRun) {
@@ -71,20 +72,21 @@ export default async function PreviewPage({
         version: true,
         previewUrl: true,
         manifest: true,
+        htmlBundle: true,
       },
     });
   }
 
   const clientName = pipelineRun?.client.name ?? "your project";
 
-  // check payment status — lock preview if unpaid
-  if (!tracker.paidAt) {
+  // check payment status — only lock preview after step 5 (billing)
+  if (!tracker.paidAt && tracker.currentStep > 5) {
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center slushie-gradient px-4">
+      <main className="flex min-h-screen flex-col items-center justify-center bg-background px-4">
         <div className="w-full max-w-md text-center">
-          <h1 className="text-2xl font-extrabold text-primary">slushie</h1>
-          <div className="mt-8 rounded-2xl bg-white/80 shadow-lg backdrop-blur-sm p-6">
-            <div className="mx-auto h-16 w-16 rounded-full bg-gray-100 flex items-center justify-center mb-4">
+          <h1 className="text-2xl font-extrabold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">slushie</h1>
+          <div className="mt-8 rounded-2xl bg-surface shadow-lg backdrop-blur-sm p-6">
+            <div className="mx-auto h-16 w-16 rounded-full bg-white/5 flex items-center justify-center mb-4">
               <svg className="h-8 w-8 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
               </svg>
@@ -123,6 +125,9 @@ export default async function PreviewPage({
       nanoid={nanoid}
       clientName={clientName}
       prototypeUrl={prototype?.previewUrl ?? null}
+      prototypeId={prototype?.id ?? null}
+      hasHtmlBundle={!!prototype?.htmlBundle}
+      manifest={prototype?.manifest ?? null}
       walkthroughSteps={walkthroughSteps}
     />
   );

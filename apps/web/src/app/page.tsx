@@ -124,7 +124,7 @@ export default function Home() {
       </section>
 
       {/* pricing */}
-      <section className="bg-white px-6 py-24">
+      <section className="bg-surface px-6 py-24">
         <div className="mx-auto max-w-4xl text-center">
           <h2 className="text-3xl font-extrabold text-foreground">
             pick your flavor.
@@ -135,7 +135,7 @@ export default function Home() {
 
           <div className="mt-14 grid gap-6 md:grid-cols-3">
             {/* single scoop */}
-            <div className="rounded-2xl border-2 border-gray-200 p-8 text-left">
+            <div className="rounded-2xl border-2 border-border p-8 text-left">
               <p className="text-sm font-semibold text-muted">single scoop</p>
               <p className="mt-2 text-4xl font-extrabold text-foreground">$3,500</p>
               <p className="mt-4 text-sm text-muted">

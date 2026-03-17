@@ -32,9 +32,9 @@ export function AgentScorecard({
   disabled,
 }: AgentScorecardProps) {
   return (
-    <div className="rounded-lg border border-gray-200 bg-white">
+    <div className="rounded-lg border border-border bg-surface">
       {/* header with score */}
-      <div className="flex items-center justify-between border-b border-gray-200 p-4">
+      <div className="flex items-center justify-between border-b border-border p-4">
         <div>
           <h3 className="text-sm font-bold">{agentType} agent</h3>
           <p className="mt-0.5 text-xs text-muted">{summary}</p>
@@ -50,7 +50,7 @@ export function AgentScorecard({
 
       {/* postmortem agent's pattern-based improvement suggestions */}
       {suggestions.length > 0 && (
-        <div className="border-b border-gray-200 p-4">
+        <div className="border-b border-border p-4">
           <p className="text-xs font-medium text-muted">suggested improvements</p>
           <ul className="mt-2 space-y-1">
             {suggestions.map((suggestion, i) => (
@@ -78,7 +78,7 @@ export function AgentScorecard({
           disabled={disabled}
           placeholder={`what did the ${agentType} agent do well? what should it improve?`}
           rows={3}
-          className="mt-1 w-full rounded-lg border border-gray-200 bg-background px-3 py-2 text-sm placeholder:text-muted focus:border-secondary focus:outline-none focus:ring-1 focus:ring-secondary disabled:opacity-60"
+          className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm placeholder:text-muted focus:border-secondary focus:outline-none focus:ring-1 focus:ring-secondary disabled:opacity-60"
         />
       </div>
     </div>

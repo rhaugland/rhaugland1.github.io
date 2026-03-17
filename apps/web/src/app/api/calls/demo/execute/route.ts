@@ -2,8 +2,11 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@slushie/db";
 import { NextResponse } from "next/server";
 import { getRedisPublisher } from "@/lib/redis";
+import { createEventQueue, createEvent } from "@slushie/events";
 import path from "path";
 import fs from "fs/promises";
+
+const pipelineQueue = createEventQueue("pipeline");
 
 const WORKSPACE_ROOT = process.env.WORKSPACE_ROOT ?? "/tmp/slushie-workspaces";
 
@@ -89,22 +92,15 @@ export async function POST(request: Request) {
       }
     }
 
-    // publish call.ended event
+    // publish call.ended to both Redis (SSE) and BullMQ (pipeline worker)
     const redis = getRedisPublisher();
-    const event = {
-      type: "call.ended",
-      pipelineRunId: pipelineRun.id,
-      timestamp: Date.now(),
-      data: {
-        callId: call.id,
-        clientId: client.id,
-        duration: 1200,
-      },
-    };
-    await redis.publish(
-      `events:${pipelineRun.id}`,
-      JSON.stringify(event)
-    );
+    const event = createEvent("call.ended", pipelineRun.id, {
+      callId: call.id,
+      clientId: client.id,
+      duration: 1200,
+    });
+    await redis.publish(`events:${pipelineRun.id}`, JSON.stringify(event));
+    await pipelineQueue.add("call.ended", event);
 
     return NextResponse.json({
       pipelineRunId: pipelineRun.id,

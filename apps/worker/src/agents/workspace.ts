@@ -10,6 +10,7 @@ export interface PipelineWorkspace {
   coachingLogPath: string;
   buildSpecPath: (version: number) => string;
   manifestPath: (version: number) => string;
+  htmlPath: (version: number) => string;
   gapReportPath: (version: number) => string;
   decisionLogPath: (version: number) => string;
 }
@@ -24,6 +25,7 @@ export async function createWorkspace(pipelineRunId: string): Promise<PipelineWo
     coachingLogPath: join(root, "coaching-log.json"),
     buildSpecPath: (v: number) => join(root, `build-spec-v${v}.json`),
     manifestPath: (v: number) => join(root, `manifest-v${v}.json`),
+    htmlPath: (v: number) => join(root, `prototype-v${v}.html`),
     gapReportPath: (v: number) => join(root, `gap-report-v${v}.json`),
     decisionLogPath: (v: number) => join(root, `decision-log-v${v}.json`),
   };
@@ -40,6 +42,7 @@ export async function getWorkspace(pipelineRunId: string): Promise<PipelineWorks
     coachingLogPath: join(root, "coaching-log.json"),
     buildSpecPath: (v: number) => join(root, `build-spec-v${v}.json`),
     manifestPath: (v: number) => join(root, `manifest-v${v}.json`),
+    htmlPath: (v: number) => join(root, `prototype-v${v}.html`),
     gapReportPath: (v: number) => join(root, `gap-report-v${v}.json`),
     decisionLogPath: (v: number) => join(root, `decision-log-v${v}.json`),
   };

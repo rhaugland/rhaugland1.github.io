@@ -23,13 +23,7 @@ export async function POST(
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  // admin role required for postmortem submission
-  if (session.user.role !== "admin") {
-    return NextResponse.json(
-      { error: "only admins can submit postmortems" },
-      { status: 403 }
-    );
-  }
+  // any authenticated team member can submit postmortems
 
   const { pipelineRunId } = await params;
 

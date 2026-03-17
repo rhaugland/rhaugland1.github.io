@@ -3,15 +3,19 @@ import { prisma } from "@slushie/db";
 import { nanoid } from "nanoid";
 import bcrypt from "bcryptjs";
 import { generateTempPassword } from "@/lib/tracker-auth";
+import { createEventQueue, createEvent } from "@slushie/events";
+
+const pipelineQueue = createEventQueue("pipeline");
 
 const BOOKING_STEPS = [
-  { step: 1, label: "meeting confirmed", subtitle: "your blend is scheduled. we'll see you there." },
-  { step: 2, label: "meeting", subtitle: "we're on the call. workflow discovery in progress." },
-  { step: 3, label: "slushie build review", subtitle: "our team is reviewing the build for quality." },
-  { step: 4, label: "client build approval", subtitle: "your turn. take a look and let us know." },
-  { step: 5, label: "plug-in", subtitle: "connecting to your tools. almost there." },
-  { step: 6, label: "billing", subtitle: "invoice sent. simple and transparent." },
-  { step: 7, label: "satisfaction survey", subtitle: "how'd we do? we want to keep getting better." },
+  { step: 1, label: "intake build", subtitle: "we're already building your first prototype." },
+  { step: 2, label: "schedule discovery", subtitle: "your rep will reach out to schedule a discovery call." },
+  { step: 3, label: "discovery meeting", subtitle: "let's walk through your workflow together." },
+  { step: 4, label: "discovery build", subtitle: "building an improved version based on our conversation." },
+  { step: 5, label: "client build approval", subtitle: "your turn. take a look and let us know." },
+  { step: 6, label: "plug-in", subtitle: "connecting to your tools. almost there." },
+  { step: 7, label: "billing", subtitle: "invoice sent. simple and transparent." },
+  { step: 8, label: "satisfaction survey", subtitle: "how'd we do? we want to keep getting better." },
 ];
 
 interface DemoPreset {
@@ -77,10 +81,7 @@ export async function POST(request: Request) {
       },
     });
 
-    // meeting time = now (so start call button appears)
-    const meetingTime = new Date();
-
-    // create booking — no calendar event, just a demo marker
+    // create booking — no meetingTime, no calendar event
     const booking = await prisma.booking.create({
       data: {
         name: data.name,
@@ -88,14 +89,32 @@ export async function POST(request: Request) {
         businessName: data.businessName,
         plan: data.plan,
         description: data.description,
-        meetingTime,
         calendarEventId: `demo-${nanoid(10)}`,
         clientId: client.id,
       },
     });
 
-    // create tracker with password auth — NO pipeline run yet
-    // the real pipeline gets triggered when someone claims the booking
+    // create call record with description as transcript
+    const call = await prisma.call.create({
+      data: {
+        clientId: client.id,
+        startedAt: new Date(),
+        endedAt: new Date(),
+        transcript: data.description,
+        coachingLog: [],
+      },
+    });
+
+    // create pipeline run
+    const pipelineRun = await prisma.pipelineRun.create({
+      data: {
+        clientId: client.id,
+        callId: call.id,
+        status: "RUNNING",
+      },
+    });
+
+    // create tracker at step 1 (active — intake build in progress)
     const slug = nanoid(21);
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 30);
@@ -105,13 +124,14 @@ export async function POST(request: Request) {
 
     const steps = BOOKING_STEPS.map((s, i) => ({
       ...s,
-      status: i === 0 ? "done" : "pending",
-      completedAt: i === 0 ? new Date().toISOString() : null,
+      status: i === 0 ? "active" : "pending",
+      completedAt: null as string | null,
     }));
 
     await prisma.tracker.create({
       data: {
         bookingId: booking.id,
+        pipelineRunId: pipelineRun.id,
         slug,
         currentStep: 1,
         steps,
@@ -120,6 +140,16 @@ export async function POST(request: Request) {
         mustChangePassword: true,
       },
     });
+
+    // dispatch call.ended to trigger analyst → builder pipeline
+    await pipelineQueue.add(
+      "call.ended",
+      createEvent("call.ended", pipelineRun.id, {
+        callId: call.id,
+        clientId: client.id,
+        duration: 0,
+      })
+    );
 
     return NextResponse.json({
       ok: true,

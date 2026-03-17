@@ -93,18 +93,18 @@ export function TrackerLogin({ slug, businessName }: TrackerLoginProps) {
   }
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center slushie-gradient px-4">
+    <main className="flex min-h-screen flex-col items-center justify-center bg-background px-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-primary">slushie</h1>
-          <p className="mt-2 text-sm text-foreground">
+          <h1 className="text-2xl sm:text-3xl font-extrabold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">slushie</h1>
+          <p className="mt-2 text-sm text-muted">
             {mustChangePassword
               ? "set your password"
               : `log in to view your ${businessName} tracker`}
           </p>
         </div>
 
-        <div className="rounded-2xl bg-white/80 shadow-lg backdrop-blur-sm p-6">
+        <div className="rounded-2xl bg-surface border border-border shadow-lg p-6">
           {!mustChangePassword ? (
             <form onSubmit={handleLogin} className="space-y-4">
               <div>
@@ -118,7 +118,7 @@ export function TrackerLogin({ slug, businessName }: TrackerLoginProps) {
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="your@email.com"
                   required
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-foreground placeholder:text-muted/50 focus:border-primary focus:outline-none"
+                  className="w-full rounded-lg border border-border bg-surface-light px-3 py-2.5 text-sm text-foreground placeholder:text-muted/50 focus:border-primary focus:outline-none"
                 />
               </div>
               <div>
@@ -132,11 +132,11 @@ export function TrackerLogin({ slug, businessName }: TrackerLoginProps) {
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="from your confirmation email"
                   required
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-foreground placeholder:text-muted/50 focus:border-primary focus:outline-none"
+                  className="w-full rounded-lg border border-border bg-surface-light px-3 py-2.5 text-sm text-foreground placeholder:text-muted/50 focus:border-primary focus:outline-none"
                 />
               </div>
               {error && (
-                <p className="text-sm text-red-600 font-medium">{error}</p>
+                <p className="text-sm text-red-400 font-medium">{error}</p>
               )}
               <button
                 type="submit"
@@ -163,7 +163,7 @@ export function TrackerLogin({ slug, businessName }: TrackerLoginProps) {
                   placeholder="at least 6 characters"
                   required
                   minLength={6}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-foreground placeholder:text-muted/50 focus:border-primary focus:outline-none"
+                  className="w-full rounded-lg border border-border bg-surface-light px-3 py-2.5 text-sm text-foreground placeholder:text-muted/50 focus:border-primary focus:outline-none"
                 />
               </div>
               <div>
@@ -177,11 +177,11 @@ export function TrackerLogin({ slug, businessName }: TrackerLoginProps) {
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="type it again"
                   required
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-foreground placeholder:text-muted/50 focus:border-primary focus:outline-none"
+                  className="w-full rounded-lg border border-border bg-surface-light px-3 py-2.5 text-sm text-foreground placeholder:text-muted/50 focus:border-primary focus:outline-none"
                 />
               </div>
               {error && (
-                <p className="text-sm text-red-600 font-medium">{error}</p>
+                <p className="text-sm text-red-400 font-medium">{error}</p>
               )}
               <button
                 type="submit"

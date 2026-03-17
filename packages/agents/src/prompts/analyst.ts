@@ -86,7 +86,17 @@ the output file must contain valid json matching this structure exactly:
         "type": "accounting | calendar | crm | email | sms | payment",
         "mockBehavior": "string — what the simulation does"
       }
-    ]
+    ],
+    "designPreferences": {
+      "theme": "light | dark — default 'light', use 'dark' if client requests dark mode/dark theme",
+      "backgroundColor": "string | null — specific background color if mentioned (e.g. '#1a1a2e' for dark navy)",
+      "accentColor": "string | null — primary accent color if mentioned (e.g. '#06b6d4' for teal/cyan)",
+      "fontBody": "string | null — body font if mentioned (e.g. 'Inter')",
+      "fontHeading": "string | null — heading font if mentioned (e.g. 'Plus Jakarta Sans')",
+      "borderRadius": "string | null — 'rounded' or 'sharp' if mentioned",
+      "spacing": "string | null — 'compact' or 'spacious' if mentioned",
+      "notes": "string | null — any other design preferences the client mentioned"
+    }
   }
 }
 
@@ -98,6 +108,8 @@ the output file must contain valid json matching this structure exactly:
 - simulated integrations should feel real but clearly state they are simulated in the walkthrough.
 - do not include any features the client did not discuss or imply.
 - be conservative on monetary estimates — underestimate rather than overestimate.
+- pay close attention to any design/styling preferences mentioned in the transcript: colors, fonts, themes, spacing, border radius. capture these in designPreferences.
+- if the client mentions a dark theme, set theme to "dark". extract specific color values, font names, and layout preferences.
 
 write the json file to ${context.outputPath} and nothing else.`;
 }
@@ -151,23 +163,38 @@ write only the json response to stdout.`;
 export function analystSpecUpdatePrompt(context: {
   currentSpecPath: string;
   gapReportPath: string;
+  meetingNotesPath?: string;
   outputPath: string;
   version: number;
 }): string {
+  const meetingSection = context.meetingNotesPath
+    ? `- client review meeting notes: ${context.meetingNotesPath}`
+    : "";
+
+  const meetingInstruction = context.meetingNotesPath
+    ? "2b. read the client review meeting notes — these contain DIRECT CLIENT FEEDBACK. every issue the client raised must be addressed in the updated spec. client feedback takes highest priority."
+    : "";
+
   return `you are the slushie analyst agent updating a build spec based on a reviewer's gap report.
 
 ## input files
 - current build spec: ${context.currentSpecPath}
 - gap report: ${context.gapReportPath}
+${meetingSection}
 
 ## instructions
 
 1. read the current build spec.
 2. read the gap report — focus on revisions with priority "high" and "medium".
-3. update the spec to address the identified gaps.
-4. do not remove features that were already working.
+${meetingInstruction}
+3. update the spec to address the identified gaps. for each gap:
+   - if it's "missed": add the feature/component to the spec
+   - if it's "simplified": expand the component spec to fully match the requirement
+   - if it's "deferred": include it if priority is high or medium
+4. do not remove features that were already working AND not flagged in the gap report.
 5. do not add features the client never discussed.
 6. keep the prototype at 3-6 pages.
+7. the updated spec MUST be meaningfully different from the current spec. if the gap report found issues, the spec must change to address them.
 
 write the updated spec (same json schema as the original) to: ${context.outputPath}
 

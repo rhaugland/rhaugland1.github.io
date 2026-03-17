@@ -7,7 +7,7 @@ import {
 } from "@slushie/events";
 import { publishEvent } from "../publish";
 import { createAgentLogger, logger } from "../logger";
-import { createWorkspace, writeWorkspaceFile } from "./workspace";
+import { createWorkspace, getWorkspace, writeWorkspaceFile } from "./workspace";
 import { initResolution, handleResolutionReview, isInResolution } from "./gap-resolution";
 import {
   analystQueue,
@@ -76,10 +76,73 @@ export function createPipelineOrchestrator() {
         case "prototype.ready": {
           const { version } = event.data as { version: number; prototypeId: string; previewUrl: string };
           if (version === 1) {
-            log.info("pipeline: prototype v1 ready — starting phase 4 (gap resolution)");
-            initResolution(event.pipelineRunId);
-            await reviewerQueue.add("prototype.ready", event);
+            log.info("pipeline: prototype v1 ready — advancing tracker to step 2 (schedule discovery)");
+
+            // advance tracker from step 1 (intake build) to step 2 (schedule discovery)
+            const tracker = await prisma.tracker.findFirst({
+              where: { pipelineRunId: event.pipelineRunId },
+            });
+            if (tracker) {
+              const steps = tracker.steps as Array<{
+                step: number; label: string; subtitle: string; status: string; completedAt: string | null;
+              }>;
+              const updatedSteps = steps.map((s, i) => ({
+                ...s,
+                status: i === 0 ? "done" : i === 1 ? "active" : s.status,
+                completedAt: i === 0 && !s.completedAt ? new Date().toISOString() : s.completedAt,
+              }));
+              await prisma.tracker.update({
+                where: { id: tracker.id },
+                data: { currentStep: 2, steps: updatedSteps },
+              });
+            }
+
+            // notify the client that v1 is ready for review
+            try {
+              const webUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+              await fetch(`${webUrl}/api/internal/notify-v1-ready`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ pipelineRunId: event.pipelineRunId }),
+              });
+            } catch (emailErr) {
+              log.error(emailErr, "pipeline: failed to send v1 ready email");
+            }
+
+            // don't auto-start gap resolution — wait for employee to complete a review meeting
+            // the gap analysis will be triggered via gap.meeting.complete event
           }
+          break;
+        }
+
+        case "gap.meeting.complete": {
+          const { prototypeId, meetingNotes } = event.data as {
+            prototypeId: string;
+            version: number;
+            meetingNotes: string | null;
+          };
+
+          log.info("pipeline: gap meeting complete — starting gap resolution");
+
+          // write meeting notes to workspace so reviewer can use them
+          if (meetingNotes) {
+            const workspace = await getWorkspace(event.pipelineRunId);
+            await writeWorkspaceFile(
+              `${workspace.root}/gap-meeting-notes.txt`,
+              `CLIENT REVIEW MEETING NOTES:\n${meetingNotes}\n`
+            );
+          }
+
+          // now start gap resolution
+          initResolution(event.pipelineRunId);
+
+          // create prototype.ready event for the reviewer
+          const reviewEvent = createEvent("prototype.ready", event.pipelineRunId, {
+            prototypeId,
+            version: 1,
+            previewUrl: `app.slushie.agency/preview/${event.pipelineRunId}`,
+          });
+          await reviewerQueue.add("prototype.ready", reviewEvent);
           break;
         }
 
@@ -132,44 +195,67 @@ export function createPipelineOrchestrator() {
 
           log.info(
             { finalPrototypeVersion },
-            "pipeline: gap resolution complete — starting phase 5 (final review)"
+            "pipeline: gap resolution complete — v2 ready, advancing to step 5 (client build approval)"
           );
 
-          // trigger final review: send the final prototype to reviewer
-          // find the latest prototype
-          const pipelineRun = await prisma.pipelineRun.findUniqueOrThrow({
+          // update pipeline run status
+          await prisma.pipelineRun.update({
             where: { id: event.pipelineRunId },
-            include: {
-              call: {
-                include: {
-                  analysis: {
-                    include: {
-                      buildSpecs: {
-                        include: { prototypes: true },
-                        orderBy: { version: "desc" },
-                        take: 1,
-                      },
-                    },
-                  },
-                },
-              },
-            },
+            data: { status: "COMPLETED" },
           });
 
-          const latestPrototype =
-            pipelineRun.call.analysis?.buildSpecs[0]?.prototypes[0];
-
-          if (latestPrototype) {
-            // send to reviewer for final review
-            await reviewerQueue.add(
-              "prototype.patched",
-              createEvent("prototype.patched", event.pipelineRunId, {
-                prototypeId: latestPrototype.id,
-                version: latestPrototype.version,
-                patchSummary: "final review",
-              })
-            );
+          // advance tracker to step 5 (client build approval)
+          const trackerRecord = await prisma.tracker.findFirst({
+            where: { pipelineRunId: event.pipelineRunId },
+          });
+          if (trackerRecord) {
+            const steps = trackerRecord.steps as Array<{
+              step: number; label: string; subtitle: string; status: string; completedAt: string | null;
+            }>;
+            const updatedSteps = steps.map((s, i) => ({
+              ...s,
+              status: i <= 3 ? "done" : i === 4 ? "active" : s.status,
+              completedAt: i <= 3 && !s.completedAt ? new Date().toISOString() : s.completedAt,
+            }));
+            await prisma.tracker.update({
+              where: { id: trackerRecord.id },
+              data: { currentStep: 5, steps: updatedSteps },
+            });
           }
+
+          // send email: v2 build ready for client approval
+          try {
+            const webUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+            await fetch(`${webUrl}/api/internal/notify-v1-ready`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ pipelineRunId: event.pipelineRunId }),
+            });
+          } catch (emailErr) {
+            log.error(emailErr, "pipeline: failed to send v2 ready email");
+          }
+
+          // auto-create generated codebase record
+          try {
+            const completedRun = await prisma.pipelineRun.findUnique({
+              where: { id: event.pipelineRunId },
+              select: { clientId: true, callId: true },
+            });
+            if (completedRun) {
+              await prisma.codebase.create({
+                data: {
+                  clientId: completedRun.clientId,
+                  callId: completedRun.callId,
+                  source: "generated",
+                  path: event.pipelineRunId,
+                },
+              });
+            }
+          } catch (err) {
+            log.error(err, "pipeline: failed to create generated codebase record");
+          }
+
+          log.info("pipeline: build complete and ready to serve");
           break;
         }
 
@@ -231,6 +317,9 @@ export function createPipelineOrchestrator() {
     {
       connection: getRedisConnection(),
       concurrency: 3,
+      settings: {
+        backoffStrategy: (attemptsMade: number) => [1000, 10000, 60000][attemptsMade - 1] ?? 60000,
+      },
     }
   );
 }

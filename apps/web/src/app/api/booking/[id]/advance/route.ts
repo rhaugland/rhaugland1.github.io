@@ -2,6 +2,24 @@ import { NextResponse } from "next/server";
 import { prisma } from "@slushie/db";
 import { auth } from "@/lib/auth";
 import { getRedisPublisher } from "@/lib/redis";
+import {
+  sendBuildReadyForApproval,
+  sendCredentialsNeeded,
+  sendPaymentDue,
+  sendSurveyOpen,
+} from "@/lib/email";
+
+const PLAN_PRICES: Record<string, string> = {
+  SINGLE_SCOOP: "$3,500",
+  DOUBLE_BLEND: "$6,000",
+  TRIPLE_FREEZE: "$8,500",
+};
+
+const PLAN_LABELS: Record<string, string> = {
+  SINGLE_SCOOP: "single scoop",
+  DOUBLE_BLEND: "double blend",
+  TRIPLE_FREEZE: "triple freeze",
+};
 
 export async function PATCH(
   request: Request,
@@ -139,6 +157,43 @@ export async function PATCH(
       where: { id },
       data: { status: "COMPLETED" },
     });
+  }
+
+  // send step-specific email to client (step 2 = building v1, no email)
+  const emailData = {
+    to: booking.email,
+    name: booking.name,
+    businessName: booking.businessName,
+    slug: tracker.slug,
+  };
+
+  try {
+    switch (nextStep) {
+      case 5: // client build approval — v2 ready
+        sendBuildReadyForApproval(emailData).catch((e) =>
+          console.error("[email] build ready for approval failed:", e)
+        );
+        break;
+      case 6: // plug-in — need credentials
+        sendCredentialsNeeded(emailData).catch((e) =>
+          console.error("[email] credentials needed failed:", e)
+        );
+        break;
+      case 7: // billing — payment due
+        sendPaymentDue({
+          ...emailData,
+          planLabel: PLAN_LABELS[booking.plan] ?? booking.plan,
+          planPrice: PLAN_PRICES[booking.plan] ?? "$0",
+        }).catch((e) => console.error("[email] payment due failed:", e));
+        break;
+      case 8: // satisfaction survey
+        sendSurveyOpen(emailData).catch((e) =>
+          console.error("[email] survey open failed:", e)
+        );
+        break;
+    }
+  } catch (emailErr) {
+    console.error("[email] advance step email failed:", emailErr);
   }
 
   // publish SSE update via Redis

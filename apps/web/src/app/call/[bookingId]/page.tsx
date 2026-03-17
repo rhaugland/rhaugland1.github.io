@@ -19,7 +19,7 @@ export default async function CustomerCallPage({
 
   if (!booking) notFound();
 
-  const meetingLabel = booking.meetingTime.toLocaleDateString("en-US", {
+  const meetingLabel = booking.meetingTime?.toLocaleDateString("en-US", {
     weekday: "long",
     month: "long",
     day: "numeric",
@@ -28,7 +28,7 @@ export default async function CustomerCallPage({
   });
 
   const isMeetingDay =
-    booking.meetingTime.toDateString() === new Date().toDateString();
+    booking.meetingTime?.toDateString() === new Date().toDateString();
 
   // advance tracker to step 2 if still at step 1
   if (booking.tracker && booking.tracker.currentStep <= 1 && isMeetingDay) {
@@ -55,12 +55,12 @@ export default async function CustomerCallPage({
   }
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center slushie-gradient px-4">
+    <main className="flex min-h-screen flex-col items-center justify-center bg-background px-4">
       <div className="w-full max-w-md text-center">
-        <h1 className="text-2xl font-extrabold text-primary">slushie</h1>
+        <h1 className="text-2xl font-extrabold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">slushie</h1>
         <p className="mt-2 text-sm text-muted">blend session</p>
 
-        <div className="mt-8 rounded-2xl bg-white/80 shadow-lg backdrop-blur-sm p-6">
+        <div className="mt-8 rounded-2xl bg-surface border border-border shadow-lg p-6">
           {isMeetingDay ? (
             <>
               <div className="flex items-center justify-center gap-2 mb-4">

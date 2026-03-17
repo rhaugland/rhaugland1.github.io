@@ -6,7 +6,7 @@ import { invokeClaudeCode } from "../claude";
 import { publishEvent } from "../publish";
 import { createAgentLogger } from "../logger";
 import { getWorkspace, writeWorkspaceFile, readWorkspaceFile } from "./workspace";
-import { PHASE_TIMEOUTS } from "../queues";
+import { PHASE_TIMEOUTS, pipelineQueue } from "../queues";
 
 function getRedisConnection() {
   const url = process.env.REDIS_URL ?? "redis://localhost:6379";
@@ -37,6 +37,9 @@ export function createAnalystWorker() {
     {
       connection: getRedisConnection(),
       concurrency: 1,
+      settings: {
+        backoffStrategy: (attemptsMade: number) => [1000, 10000, 60000][attemptsMade - 1] ?? 60000,
+      },
     }
   );
 }
@@ -103,6 +106,11 @@ async function handleCallEnded(event: CallEndedEvent): Promise<void> {
     });
 
     const newVersion = (existingAnalysis.buildSpecs[0]?.version ?? 0) + 1;
+
+    // copy spec to the versioned path so the builder can find it at buildSpecPath(newVersion)
+    const versionedSpecPath = workspace.buildSpecPath(newVersion);
+    await writeWorkspaceFile(versionedSpecPath, specContent);
+
     buildSpec = await prisma.buildSpec.create({
       data: {
         analysisId: analysis.id,
@@ -124,13 +132,13 @@ async function handleCallEnded(event: CallEndedEvent): Promise<void> {
       })
     );
 
-    await publishEvent(
-      createEvent("build.spec.updated", event.pipelineRunId, {
+    const specUpdatedEvent = createEvent("build.spec.updated", event.pipelineRunId, {
         buildSpecId: buildSpec.id,
         version: newVersion,
         changesFromGapReport: "updated from call transcript",
-      })
-    );
+      });
+    await publishEvent(specUpdatedEvent);
+    await pipelineQueue.add("build.spec.updated", specUpdatedEvent);
   } else {
     // first analysis for this call
     analysis = await prisma.analysis.create({
@@ -161,13 +169,13 @@ async function handleCallEnded(event: CallEndedEvent): Promise<void> {
       })
     );
 
-    await publishEvent(
-      createEvent("build.spec.ready", event.pipelineRunId, {
+    const specReadyEvent = createEvent("build.spec.ready", event.pipelineRunId, {
         buildSpecId: buildSpec.id,
         version: 1,
         pageCount: spec.prototype.pages.length,
-      })
-    );
+      });
+    await publishEvent(specReadyEvent);
+    await pipelineQueue.add("build.spec.ready", specReadyEvent);
   }
 
   // update tracker
@@ -238,9 +246,19 @@ async function handleReviewComplete(event: SlushieEvent): Promise<void> {
 
   const workspace = await getWorkspace(event.pipelineRunId);
 
+  // check for meeting notes
+  const meetingNotesPath = `${workspace.root}/gap-meeting-notes.txt`;
+  let hasMeetingNotes = false;
+  try {
+    const fsModule = await import("node:fs/promises");
+    await fsModule.access(meetingNotesPath);
+    hasMeetingNotes = true;
+  } catch {}
+
   const prompt = analystSpecUpdatePrompt({
     currentSpecPath: workspace.buildSpecPath(version),
     gapReportPath: workspace.gapReportPath(version),
+    meetingNotesPath: hasMeetingNotes ? meetingNotesPath : undefined,
     outputPath: workspace.buildSpecPath(newVersion),
     version: newVersion,
   });
@@ -278,13 +296,13 @@ async function handleReviewComplete(event: SlushieEvent): Promise<void> {
     },
   });
 
-  await publishEvent(
-    createEvent("build.spec.updated", event.pipelineRunId, {
+  const specUpdatedEvent = createEvent("build.spec.updated", event.pipelineRunId, {
       buildSpecId: buildSpec.id,
       version: newVersion,
       changesFromGapReport: `updated from gap report v${version}`,
-    })
-  );
+    });
+  await publishEvent(specUpdatedEvent);
+  await pipelineQueue.add("build.spec.updated", specUpdatedEvent);
 
   log.info({ buildSpecId: buildSpec.id, version: newVersion }, "analyst spec update published");
 }
@@ -383,11 +401,13 @@ async function handleIncrementalAnalysis(event: AnalystIncrementalEvent): Promis
       totalMonetaryImpact: output.totalMonthlyImpact ?? "$0",
     }));
 
-    await publishEvent(createEvent("build.spec.ready", pipelineRunId, {
+    const specReadyEvent = createEvent("build.spec.ready", pipelineRunId, {
       buildSpecId: buildSpec.id,
       version: 1,
       pageCount: (spec.pages as unknown[])?.length ?? 0,
-    }));
+    });
+    await publishEvent(specReadyEvent);
+    await pipelineQueue.add("build.spec.ready", specReadyEvent);
 
     log.info("first incremental analysis complete — spec v1 published");
   } else {
@@ -434,11 +454,13 @@ async function handleIncrementalAnalysis(event: AnalystIncrementalEvent): Promis
         totalMonetaryImpact: output.totalMonthlyImpact ?? "$0",
       }));
 
-      await publishEvent(createEvent("build.spec.updated", pipelineRunId, {
+      const specUpdatedEvent = createEvent("build.spec.updated", pipelineRunId, {
         buildSpecId: buildSpec.id,
         version: newVersion,
         changesFromGapReport: `incremental update: pages ${oldPages.length}→${newPages.length}, integrations ${oldIntegrations.length}→${newIntegrations.length}, gaps ${oldGaps.length}→${newGaps.length}`,
-      }));
+      });
+      await publishEvent(specUpdatedEvent);
+      await pipelineQueue.add("build.spec.updated", specUpdatedEvent);
 
       log.info({ newVersion, materialChange: true }, "incremental analysis complete — spec updated");
     } else {
