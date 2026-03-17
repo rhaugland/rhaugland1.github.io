@@ -160,6 +160,48 @@ export async function sendDiscoveryScheduling({
   });
 }
 
+// ── demo scheduling email ──
+
+export async function sendDemoScheduling({
+  to,
+  name,
+  businessName,
+  slug,
+  customBody,
+}: {
+  to: string;
+  name: string;
+  businessName: string;
+  slug: string;
+  customBody?: string;
+}) {
+  await send({
+    to,
+    subject: `let's schedule your demo — ${businessName}`,
+    html: layout(`
+      <h2 style="margin:0 0 8px;font-size:18px;color:#0F172A;">hey ${name},</h2>
+      ${customBody ? `
+        <p style="margin:0 0 16px;font-size:14px;color:#64748B;">
+          ${customBody}
+        </p>
+      ` : `
+        <p style="margin:0 0 16px;font-size:14px;color:#64748B;">
+          your ${accent(businessName)} build is ready and we'd love to walk you through it. we've put together a ${accent("live demo")} so you can see exactly how everything works before we hand it over.
+        </p>
+        <p style="margin:0 0 16px;font-size:14px;color:#64748B;">
+          just reply to this email with a few times that work for you, and we'll get the demo on the calendar.
+        </p>
+      `}
+      <div style="text-align:center;margin:20px 0;">
+        ${button(trackerUrl(slug), "view your build")}
+      </div>
+      <p style="margin:16px 0 0;font-size:12px;color:#94A3B8;">
+        you can preview your build on your tracker page while we set up the demo.
+      </p>
+    `),
+  });
+}
+
 // ── 2. meeting confirmed — join link ──
 
 export async function sendMeetingConfirmed({
