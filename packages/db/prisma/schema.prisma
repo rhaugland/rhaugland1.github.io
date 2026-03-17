@@ -60,6 +60,8 @@ model Booking {
   plan            BookingPlan
   description     String        @db.Text
   meetingTime     DateTime?
+  demoMeetingTime       DateTime?
+  demoCalendarEventId   String?
   status          BookingStatus @default(CONFIRMED)
   calendarEventId String?
   clientId        String?
@@ -179,7 +181,6 @@ model Tracker {
   pipelineRunId   String?      @unique
   bookingId       String?      @unique
   slug            String       @unique
-  prototypeNanoid String?      @unique
   currentStep     Int          @default(1)
   steps           Json?
   notifiedAt      DateTime?
@@ -195,8 +196,11 @@ model Tracker {
   npsCompletedAt  DateTime?
   discoveryEmailStatus  String?
   discoveryEmailSentAt  DateTime?
-  passwordHash    String?
-  mustChangePassword Boolean  @default(true)
+  demoEmailStatus       String?
+  demoEmailSentAt       DateTime?
+  demoMeetingTime       DateTime?
+  reviewMessages        Json?
+  reviewStatus          String?
   createdAt       DateTime     @default(now())
 
   pipelineRun     PipelineRun? @relation(fields: [pipelineRunId], references: [id])
