@@ -49,9 +49,9 @@ export async function POST(
 
   await pipelineQueue.add(
     "review.requested",
-    createEvent("review.requested", tracker.pipelineRun.id, {
+    createEvent("review.requested", tracker.pipelineRun!.id, {
       message: message.trim(),
-      clientId: booking.clientId,
+      clientId: booking.clientId!,
     })
   );
 
