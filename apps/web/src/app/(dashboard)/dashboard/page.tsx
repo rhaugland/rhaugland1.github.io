@@ -67,6 +67,11 @@ export default async function DashboardPage() {
           npsCompletedAt: true,
           discoveryEmailStatus: true,
           discoveryEmailSentAt: true,
+          demoEmailStatus: true,
+          demoEmailSentAt: true,
+          demoMeetingTime: true,
+          reviewMessages: true,
+          reviewStatus: true,
           pipelineRun: {
             select: {
               id: true,
@@ -353,6 +358,11 @@ export default async function DashboardPage() {
                       }
                       discoveryEmailStatus={booking.tracker?.discoveryEmailStatus ?? null}
                       discoveryEmailSentAt={booking.tracker?.discoveryEmailSentAt?.toISOString() ?? null}
+                      demoEmailStatus={booking.tracker?.demoEmailStatus ?? null}
+                      demoEmailSentAt={booking.tracker?.demoEmailSentAt?.toISOString() ?? null}
+                      demoMeetingTime={booking.tracker?.demoMeetingTime?.toISOString() ?? null}
+                      reviewMessages={(booking.tracker?.reviewMessages as Array<{ from: string; text: string; at: string }>) ?? null}
+                      reviewStatus={booking.tracker?.reviewStatus ?? null}
                     />
                   );
                 })}
