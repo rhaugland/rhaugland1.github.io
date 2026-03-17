@@ -169,24 +169,24 @@ export async function PATCH(
 
   try {
     switch (nextStep) {
-      case 5: // client build approval — v2 ready
+      case 9: // client approval — build ready for sign-off
         sendBuildReadyForApproval(emailData).catch((e) =>
           console.error("[email] build ready for approval failed:", e)
         );
         break;
-      case 6: // plug-in — need credentials
+      case 10: // plug-in — need credentials
         sendCredentialsNeeded(emailData).catch((e) =>
           console.error("[email] credentials needed failed:", e)
         );
         break;
-      case 7: // billing — payment due
+      case 11: // billing — payment due
         sendPaymentDue({
           ...emailData,
           planLabel: PLAN_LABELS[booking.plan] ?? booking.plan,
           planPrice: PLAN_PRICES[booking.plan] ?? "$0",
         }).catch((e) => console.error("[email] payment due failed:", e));
         break;
-      case 8: // satisfaction survey
+      case 12: // satisfaction survey
         sendSurveyOpen(emailData).catch((e) =>
           console.error("[email] survey open failed:", e)
         );

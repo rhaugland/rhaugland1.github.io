@@ -45,7 +45,9 @@ async function isBuildPaused(pipelineRunId: string): Promise<boolean> {
  *   review.complete (during resolution) → gap-resolution orchestrator → analyst queue
  *   build.spec.updated → builder queue
  *   prototype.patched → reviewer queue
- *   resolution.complete → final review trigger
+ *   resolution.complete → advance to step 5 (schedule demo)
+ *   demo.call.complete → advance to step 7 (demo build) + re-run analyst/builder
+ *   review.requested → re-run analyst with review context
  *   final.review.complete → internal.preview.ready
  */
 export function createPipelineOrchestrator() {
@@ -195,7 +197,7 @@ export function createPipelineOrchestrator() {
 
           log.info(
             { finalPrototypeVersion },
-            "pipeline: gap resolution complete — v2 ready, advancing to step 5 (client build approval)"
+            "pipeline: gap resolution complete — v2 ready, advancing to step 5 (schedule demo)"
           );
 
           // update pipeline run status
@@ -204,7 +206,7 @@ export function createPipelineOrchestrator() {
             data: { status: "COMPLETED" },
           });
 
-          // advance tracker to step 5 (client build approval)
+          // advance tracker to step 5 (schedule demo)
           const trackerRecord = await prisma.tracker.findFirst({
             where: { pipelineRunId: event.pipelineRunId },
           });
@@ -307,6 +309,93 @@ export function createPipelineOrchestrator() {
             log.error(err, "pipeline: failed to create generated codebase record");
           }
 
+          break;
+        }
+
+        case "demo.call.complete": {
+          const { callId, clientId, transcript } = event.data as {
+            callId: string;
+            clientId: string;
+            transcript: string;
+          };
+
+          log.info(
+            { callId, clientId },
+            "pipeline: demo call complete — advancing to step 7 (demo build)"
+          );
+
+          // advance tracker: steps 0-5 done, step 6 active, currentStep 7
+          const demoTracker = await prisma.tracker.findFirst({
+            where: { pipelineRunId: event.pipelineRunId },
+          });
+          if (demoTracker) {
+            const steps = demoTracker.steps as Array<{
+              step: number; label: string; subtitle: string; status: string; completedAt: string | null;
+            }>;
+            const updatedSteps = steps.map((s, i) => ({
+              ...s,
+              status: i <= 5 ? "done" : i === 6 ? "active" : s.status,
+              completedAt: i <= 5 && !s.completedAt ? new Date().toISOString() : s.completedAt,
+            }));
+            await prisma.tracker.update({
+              where: { id: demoTracker.id },
+              data: { currentStep: 7, steps: updatedSteps },
+            });
+          }
+
+          // write demo transcript to workspace for the analyst
+          const demoWorkspace = await getWorkspace(event.pipelineRunId);
+          await writeWorkspaceFile(
+            `${demoWorkspace.root}/demo-call-transcript.txt`,
+            `DEMO CALL TRANSCRIPT:\n${transcript}\n`
+          );
+
+          // dispatch analyst + builder pipeline to create v3 build from demo feedback
+          const demoAnalystEvent = createEvent("call.ended", event.pipelineRunId, {
+            callId,
+            clientId,
+            duration: 0,
+          });
+          await analystQueue.add("call.ended", demoAnalystEvent);
+          break;
+        }
+
+        case "review.requested": {
+          const { message, clientId } = event.data as {
+            message: string;
+            clientId: string;
+          };
+
+          log.info(
+            { clientId },
+            "pipeline: review requested — running analyst with review context"
+          );
+
+          // write review message to workspace
+          const reviewWorkspace = await getWorkspace(event.pipelineRunId);
+          await writeWorkspaceFile(
+            `${reviewWorkspace.root}/review-request.txt`,
+            `CLIENT REVIEW REQUEST:\n${message}\n`
+          );
+
+          // trigger analyst re-analysis with the review message
+          const reviewAnalystEvent = createEvent("call.ended", event.pipelineRunId, {
+            callId: "",
+            clientId,
+            duration: 0,
+          });
+          await analystQueue.add("call.ended", reviewAnalystEvent);
+
+          // update tracker reviewStatus to "ready" when the pipeline completes
+          const reviewTracker = await prisma.tracker.findFirst({
+            where: { pipelineRunId: event.pipelineRunId },
+          });
+          if (reviewTracker) {
+            await prisma.tracker.update({
+              where: { id: reviewTracker.id },
+              data: { reviewStatus: "ready" },
+            });
+          }
           break;
         }
 
