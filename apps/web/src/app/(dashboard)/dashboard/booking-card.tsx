@@ -37,6 +37,11 @@ interface BookingCardProps {
   workflowLabel?: string | null;
   discoveryEmailStatus?: string | null;
   discoveryEmailSentAt?: string | null;
+  demoEmailStatus?: string | null;
+  demoEmailSentAt?: string | null;
+  demoMeetingTime?: string | null;
+  reviewMessages?: Array<{ from: string; text: string; at: string }> | null;
+  reviewStatus?: string | null;
 }
 
 export function BookingCard({
@@ -73,6 +78,11 @@ export function BookingCard({
   workflowLabel,
   discoveryEmailStatus,
   discoveryEmailSentAt,
+  demoEmailStatus,
+  demoEmailSentAt,
+  demoMeetingTime,
+  reviewMessages,
+  reviewStatus,
 }: BookingCardProps) {
   const router = useRouter();
   const [claiming, setClaiming] = useState(false);
@@ -93,15 +103,24 @@ export function BookingCard({
     `Hi ${name},\n\nWe've finished building your first prototype for ${businessName} — take a look at it on your tracker page!\n\nWe'd love to schedule a discovery call to walk through your workflow together so we can build something even better. What times work for you this week?\n\nLooking forward to it,\nThe slushie team`
   );
   const [scheduleMeetingTime, setScheduleMeetingTime] = useState("");
+  const [demoAction, setDemoAction] = useState<string | null>(null);
+  const [demoEmailBody, setDemoEmailBody] = useState(
+    `Hi ${name},\n\nWe've completed the discovery build for ${businessName} and we'd love to walk you through a live demo of everything we've built.\n\nWhat times work for you this week?\n\nLooking forward to it,\nThe slushie team`
+  );
+  const [scheduleDemoTime, setScheduleDemoTime] = useState("");
+  const [reviewMessage, setReviewMessage] = useState("");
+  const [reviewSending, setReviewSending] = useState(false);
 
   // build time — show elapsed time during builds
   useEffect(() => {
     if (!pipelineStartedAt || buildStatus === "none") return;
     // step 1: show during intake build
     // step 4: show during discovery build
+    // step 7: show during demo build
     const isIntakeBuild = currentStep === 1 && buildStatus !== "ready";
     const isDiscoveryBuild = currentStep === 4 && v2Status && !["ready", "awaiting-meeting", "in-meeting"].includes(v2Status);
-    if (!isIntakeBuild && !isDiscoveryBuild) return;
+    const isDemoBuild = currentStep === 7 && v2Status && !["ready", "awaiting-meeting", "in-meeting"].includes(v2Status);
+    if (!isIntakeBuild && !isDiscoveryBuild && !isDemoBuild) return;
 
     const started = new Date(pipelineStartedAt).getTime();
 
@@ -119,7 +138,9 @@ export function BookingCard({
   // poll for build status changes every 15s
   const needsPoll =
     (currentStep === 1 && buildStatus !== "ready") ||
-    (currentStep === 4 && v2Status && !["ready", "awaiting-meeting", "in-meeting"].includes(v2Status));
+    (currentStep === 4 && v2Status && !["ready", "awaiting-meeting", "in-meeting"].includes(v2Status)) ||
+    (currentStep === 7 && v2Status && !["ready", "awaiting-meeting", "in-meeting"].includes(v2Status)) ||
+    (currentStep === 8 && reviewStatus === "building");
   useEffect(() => {
     if (!needsPoll) return;
     const interval = setInterval(() => {
@@ -307,8 +328,40 @@ export function BookingCard({
     }
   }
 
-  const isClientReview = currentStep === 5;
-  const isPluginStep = currentStep === 6;
+  async function handleDemoAction(action: string, meetingTimeVal?: string) {
+    setDemoAction(action);
+    try {
+      const res = await fetch(`/api/booking/${id}/schedule-demo`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, ...(meetingTimeVal ? { meetingTime: meetingTimeVal } : {}) }),
+      });
+      if (res.ok) router.refresh();
+    } finally {
+      setDemoAction(null);
+    }
+  }
+
+  async function handleReviewMessage() {
+    if (!reviewMessage.trim()) return;
+    setReviewSending(true);
+    try {
+      const res = await fetch(`/api/booking/${id}/internal-review`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: reviewMessage.trim() }),
+      });
+      if (res.ok) {
+        setReviewMessage("");
+        router.refresh();
+      }
+    } finally {
+      setReviewSending(false);
+    }
+  }
+
+  const isClientReview = currentStep === 9;
+  const isPluginStep = currentStep === 10;
   const hasClientFeedback = isClientReview && revisionStatus === "revision_received" && clientFeedback;
   const hasCredentials = isPluginStep && pluginStatus === "credentials_received" && pluginCredentials && pluginCredentials.length > 0;
 
@@ -342,13 +395,25 @@ export function BookingCard({
         </div>
       </div>
 
-      {/* meeting time (only if scheduled) */}
-      {meetingLabel && (
-        <div className="mt-2 flex items-center gap-1.5 text-xs text-muted">
-          <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-          </svg>
-          discovery: {meetingLabel}
+      {/* meeting times */}
+      {(meetingLabel || demoMeetingTime) && (
+        <div className="mt-2 space-y-1">
+          {meetingLabel && (
+            <div className="flex items-center gap-1.5 text-xs text-muted">
+              <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+              discovery: {meetingLabel}
+            </div>
+          )}
+          {demoMeetingTime && (
+            <div className="flex items-center gap-1.5 text-xs text-muted">
+              <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+              demo: {new Date(demoMeetingTime).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+            </div>
+          )}
         </div>
       )}
 
@@ -548,80 +613,341 @@ export function BookingCard({
         </div>
       )}
 
-      {/* ═══ STEP 5: client build approval (was step 4) ═══ */}
-      {/* client revision received */}
-      {hasClientFeedback && !clientBuildPending && (
+      {/* ═══ STEP 5: schedule demo ═══ */}
+      {currentStep === 5 && (
         <div className="mt-2 space-y-1.5">
-          <div className="flex items-center gap-1.5 rounded-md bg-primary/10 border border-primary/20 px-2 py-1">
-            <div className="h-2 w-2 rounded-full bg-primary" />
-            <span className="text-[10px] font-bold text-primary">client revision request</span>
-          </div>
-          <textarea
-            value={editedFeedback}
-            onChange={(e) => setEditedFeedback(e.target.value)}
-            className="w-full rounded-md border border-border px-2 py-1.5 text-xs text-foreground focus:border-primary focus:outline-none resize-none"
-            rows={3}
-          />
-          <div className="flex gap-1.5">
-            <button
-              type="button"
-              onClick={handlePushToBot}
-              disabled={clientRevisionLoading || !editedFeedback.trim()}
-              className="flex-1 rounded-md bg-gradient-to-r from-primary to-secondary px-2 py-1.5 text-[10px] font-bold text-white transition-all hover:shadow-md active:scale-[0.98] disabled:opacity-50"
+          {/* show discovery build preview */}
+          {v2PreviewUrl && (
+            <a
+              href={v2PreviewUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 rounded-md bg-gradient-to-r from-primary/10 to-secondary/10 border border-primary/20 px-2 py-1.5 hover:border-primary/40 transition-colors"
             >
-              {clientRevisionLoading ? "pushing..." : "push to developer bot"}
-            </button>
-          </div>
-        </div>
-      )}
+              <div className="h-2 w-2 rounded-full bg-secondary" />
+              <span className="text-[10px] font-bold text-secondary">discovery build ready — view</span>
+            </a>
+          )}
 
-      {/* client build changes in progress */}
-      {isClientReview && clientBuildPending && (
-        <div className="mt-2 space-y-1.5">
-          <div className="flex items-center gap-1.5 rounded-md bg-amber-500/10 border border-amber-500/20 px-2 py-1.5">
-            <div className="h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
-            <span className="text-[10px] font-medium text-amber-400">developer bot building changes...</span>
-          </div>
-          <div className="flex gap-1.5">
-            {buildPreviewUrl && (
-              <a
-                href={buildPreviewUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex-1 text-center rounded-md border border-border px-2 py-1.5 text-[10px] font-medium text-foreground hover:border-primary hover:text-primary transition-colors"
+          {/* demo email scheduling UI */}
+          {!demoEmailStatus && (
+            <div className="rounded-md border border-border bg-surface-light p-2 space-y-1.5">
+              <p className="text-[9px] font-bold text-muted uppercase tracking-wide">demo scheduling email</p>
+              <textarea
+                value={demoEmailBody}
+                onChange={(e) => setDemoEmailBody(e.target.value)}
+                className="w-full rounded-md border border-border px-2 py-1.5 text-xs text-foreground focus:border-primary focus:outline-none resize-none"
+                rows={4}
+              />
+              <button
+                type="button"
+                onClick={() => handleDemoAction("send_email")}
+                disabled={demoAction === "send_email"}
+                className="w-full rounded-md bg-gradient-to-r from-primary to-secondary px-2 py-1.5 text-[10px] font-bold text-white transition-all hover:shadow-md active:scale-[0.98] disabled:opacity-50"
               >
-                view build
-              </a>
-            )}
-            <button
-              type="button"
-              onClick={handleRepushToClient}
-              disabled={clientRevisionLoading}
-              className="flex-1 rounded-md bg-gradient-to-r from-primary to-secondary px-2 py-1.5 text-[10px] font-bold text-white transition-all hover:shadow-md active:scale-[0.98] disabled:opacity-50"
+                {demoAction === "send_email" ? "sending..." : "send demo email"}
+              </button>
+            </div>
+          )}
+
+          {demoEmailStatus === "sent" && (
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between rounded-md bg-blue-500/10 border border-blue-500/20 px-2 py-1.5">
+                <div className="flex items-center gap-1.5">
+                  <svg className="h-3 w-3 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
+                  <span className="text-[10px] font-medium text-blue-400">demo email sent</span>
+                </div>
+                {demoEmailSentAt && (
+                  <span className="text-[9px] text-blue-400/70">
+                    {new Date(demoEmailSentAt).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                  </span>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => handleDemoAction("mark_responded")}
+                disabled={demoAction === "mark_responded"}
+                className="w-full rounded-md border border-border px-2 py-1.5 text-[10px] font-medium text-foreground hover:border-primary hover:text-primary transition-colors disabled:opacity-50"
+              >
+                {demoAction === "mark_responded" ? "updating..." : "mark responded"}
+              </button>
+            </div>
+          )}
+
+          {demoEmailStatus === "responded" && (
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-1.5 rounded-md bg-primary/10 border border-primary/20 px-2 py-1.5">
+                <div className="h-2 w-2 rounded-full bg-primary" />
+                <span className="text-[10px] font-bold text-primary">client responded</span>
+              </div>
+              <div className="rounded-md border border-border bg-surface-light p-2 space-y-1.5">
+                <label className="text-[9px] font-bold text-muted uppercase tracking-wide">schedule demo</label>
+                <input
+                  type="datetime-local"
+                  value={scheduleDemoTime}
+                  onChange={(e) => setScheduleDemoTime(e.target.value)}
+                  className="w-full rounded-md border border-border px-2 py-1.5 text-xs text-foreground focus:border-primary focus:outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => handleDemoAction("schedule_demo", scheduleDemoTime)}
+                  disabled={demoAction === "schedule_demo" || !scheduleDemoTime}
+                  className="w-full rounded-md bg-gradient-to-r from-primary to-secondary px-2 py-1.5 text-[10px] font-bold text-white transition-all hover:shadow-md active:scale-[0.98] disabled:opacity-50"
+                >
+                  {demoAction === "schedule_demo" ? "scheduling..." : "schedule demo"}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {demoEmailStatus === "scheduled" && (
+            <div className="flex items-center gap-1.5 rounded-md bg-gradient-to-r from-primary/10 to-secondary/10 border border-primary/20 px-2 py-1.5">
+              <svg className="h-3 w-3 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+              <span className="text-[10px] font-bold text-primary">demo scheduled</span>
+              {demoMeetingTime && (
+                <span className="text-[9px] text-primary/70 ml-auto">
+                  {new Date(demoMeetingTime).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ═══ STEP 6: demo call ═══ */}
+      {currentStep === 6 && (
+        <div className="mt-2 space-y-1.5">
+          {demoMeetingTime && (
+            <div className="flex items-center gap-1.5 text-xs text-muted">
+              <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+              demo: {new Date(demoMeetingTime).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+            </div>
+          )}
+          {pipelineRunId && (
+            <a
+              href={`/dashboard/calls/demo-live/${pipelineRunId}`}
+              className="w-full flex items-center justify-center gap-2 rounded-md bg-gradient-to-r from-primary to-secondary px-2 py-2 text-[11px] font-bold text-white shadow-sm transition-all hover:shadow-md active:scale-[0.98]"
             >
-              {clientRevisionLoading ? "pushing..." : "push to client"}
-            </button>
-          </div>
+              <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+              </svg>
+              join demo call
+            </a>
+          )}
         </div>
       )}
 
-      {/* client review waiting */}
-      {isClientReview && !hasClientFeedback && !clientBuildPending && (
-        <div className="mt-2">
-          <div className="flex items-center gap-1.5 rounded-md bg-blue-500/10 border border-blue-500/20 px-2 py-1.5">
-            <div className="h-2 w-2 rounded-full bg-blue-400 animate-pulse" />
-            <span className="text-[10px] font-medium text-blue-400">waiting for client approval...</span>
-          </div>
+      {/* ═══ STEP 7: demo build ═══ */}
+      {currentStep === 7 && (
+        <div className="mt-2 space-y-1.5">
+          {v2Status && !["ready", "awaiting-meeting", "in-meeting"].includes(v2Status) && (
+            <div className="rounded-md border border-border bg-surface-light p-2 space-y-1">
+              <p className="text-[9px] font-bold text-muted uppercase tracking-wide">demo build progress</p>
+              <V2ProgressSteps status={v2Status as "analyzing" | "gap-report" | "building"} elapsed={timeLeft} />
+            </div>
+          )}
+
+          {v2Status === "ready" && v2PreviewUrl && (
+            <a
+              href={v2PreviewUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 rounded-md bg-gradient-to-r from-primary/10 to-secondary/10 border border-primary/20 px-2 py-1.5 hover:border-primary/40 transition-colors"
+            >
+              <div className="h-2 w-2 rounded-full bg-secondary" />
+              <span className="text-[10px] font-bold text-secondary">
+                v{latestVersion ?? 3} demo build ready — view
+              </span>
+            </a>
+          )}
         </div>
       )}
 
-      {/* ═══ STEP 6: plug-in (was step 5) ═══ */}
+      {/* ═══ STEP 8: internal review / polish ═══ */}
+      {currentStep === 8 && (
+        <div className="mt-2 space-y-1.5">
+          {/* chat-like review messages */}
+          {reviewMessages && reviewMessages.length > 0 && (
+            <div className="rounded-md border border-border bg-surface-light p-2 space-y-1 max-h-48 overflow-y-auto">
+              {reviewMessages.map((msg, i) => (
+                <div
+                  key={i}
+                  className={`flex ${msg.from === "system" ? "justify-end" : "justify-start"}`}
+                >
+                  <div
+                    className={`rounded-md px-2 py-1 max-w-[85%] ${
+                      msg.from === "system"
+                        ? "bg-secondary/10 text-secondary"
+                        : "bg-primary/10 text-foreground"
+                    }`}
+                  >
+                    <p className="text-[10px]">{msg.text}</p>
+                    <p className="text-[8px] text-muted mt-0.5">
+                      {new Date(msg.at).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* building indicator */}
+          {reviewStatus === "building" && (
+            <div className="flex items-center gap-1.5 rounded-md bg-amber-500/10 border border-amber-500/20 px-2 py-1.5">
+              <div className="h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
+              <span className="text-[10px] font-medium text-amber-400">developer bot building changes...</span>
+            </div>
+          )}
+
+          {/* ready: preview + advance */}
+          {reviewStatus === "ready" && (
+            <div className="space-y-1.5">
+              {v2PreviewUrl && (
+                <a
+                  href={v2PreviewUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 rounded-md bg-gradient-to-r from-primary/10 to-secondary/10 border border-primary/20 px-2 py-1.5 hover:border-primary/40 transition-colors"
+                >
+                  <div className="h-2 w-2 rounded-full bg-primary" />
+                  <span className="text-[10px] font-bold text-primary">review build ready — view</span>
+                </a>
+              )}
+              <button
+                type="button"
+                onClick={handleAdvance}
+                disabled={advancing}
+                className="w-full rounded-md bg-gradient-to-r from-primary to-secondary px-2 py-1.5 text-[10px] font-bold text-white transition-all hover:shadow-md active:scale-[0.98] disabled:opacity-50"
+              >
+                {advancing ? "advancing..." : "advance to client approval"}
+              </button>
+            </div>
+          )}
+
+          {/* message input */}
+          {reviewStatus !== "building" && (
+            <div className="rounded-md border border-border bg-surface-light p-2 space-y-1.5">
+              <textarea
+                value={reviewMessage}
+                onChange={(e) => setReviewMessage(e.target.value)}
+                placeholder="type review notes or change requests..."
+                className="w-full rounded-md border border-border px-2 py-1.5 text-xs text-foreground placeholder:text-muted/50 focus:border-primary focus:outline-none resize-none"
+                rows={2}
+              />
+              <button
+                type="button"
+                onClick={handleReviewMessage}
+                disabled={reviewSending || !reviewMessage.trim()}
+                className="w-full rounded-md bg-gradient-to-r from-primary to-secondary px-2 py-1.5 text-[10px] font-bold text-white transition-all hover:shadow-md active:scale-[0.98] disabled:opacity-50"
+              >
+                {reviewSending ? "sending..." : "send review message"}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ═══ STEP 9: client approval ═══ */}
+      {isClientReview && (
+        <div className="mt-2 space-y-1.5">
+          {!hasClientFeedback && !clientBuildPending && revisionStatus !== "approved" && (
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-1.5 rounded-md bg-blue-500/10 border border-blue-500/20 px-2 py-1.5">
+                <div className="h-2 w-2 rounded-full bg-blue-400 animate-pulse" />
+                <span className="text-[10px] font-medium text-blue-400">waiting for client approval...</span>
+              </div>
+              <button
+                type="button"
+                onClick={handleAdvance}
+                disabled={advancing}
+                className="w-full rounded-md border border-border px-2 py-1.5 text-[10px] font-medium text-foreground hover:border-primary hover:text-primary transition-colors disabled:opacity-50"
+              >
+                {advancing ? "sending..." : "send approval link"}
+              </button>
+            </div>
+          )}
+          {revisionStatus === "approved" && (
+            <div className="flex items-center gap-1.5 rounded-md bg-gradient-to-r from-primary/10 to-secondary/10 border border-primary/20 px-2 py-1.5">
+              <svg className="h-3 w-3 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+              <span className="text-[10px] font-bold text-primary">client approved</span>
+            </div>
+          )}
+          {hasClientFeedback && !clientBuildPending && (
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-1.5 rounded-md bg-primary/10 border border-primary/20 px-2 py-1">
+                <div className="h-2 w-2 rounded-full bg-primary" />
+                <span className="text-[10px] font-bold text-primary">client revision request</span>
+              </div>
+              <textarea
+                value={editedFeedback}
+                onChange={(e) => setEditedFeedback(e.target.value)}
+                className="w-full rounded-md border border-border px-2 py-1.5 text-xs text-foreground focus:border-primary focus:outline-none resize-none"
+                rows={3}
+              />
+              <button
+                type="button"
+                onClick={handlePushToBot}
+                disabled={clientRevisionLoading || !editedFeedback.trim()}
+                className="flex-1 rounded-md bg-gradient-to-r from-primary to-secondary px-2 py-1.5 text-[10px] font-bold text-white transition-all hover:shadow-md active:scale-[0.98] disabled:opacity-50"
+              >
+                {clientRevisionLoading ? "pushing..." : "push to developer bot"}
+              </button>
+            </div>
+          )}
+          {isClientReview && clientBuildPending && (
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-1.5 rounded-md bg-amber-500/10 border border-amber-500/20 px-2 py-1.5">
+                <div className="h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
+                <span className="text-[10px] font-medium text-amber-400">developer bot building changes...</span>
+              </div>
+              <div className="flex gap-1.5">
+                {buildPreviewUrl && (
+                  <a
+                    href={buildPreviewUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex-1 text-center rounded-md border border-border px-2 py-1.5 text-[10px] font-medium text-foreground hover:border-primary hover:text-primary transition-colors"
+                  >
+                    view build
+                  </a>
+                )}
+                <button
+                  type="button"
+                  onClick={handleRepushToClient}
+                  disabled={clientRevisionLoading}
+                  className="flex-1 rounded-md bg-gradient-to-r from-primary to-secondary px-2 py-1.5 text-[10px] font-bold text-white transition-all hover:shadow-md active:scale-[0.98] disabled:opacity-50"
+                >
+                  {clientRevisionLoading ? "pushing..." : "push to client"}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ═══ STEP 10: plug-in / credentials ═══ */}
       {isPluginStep && !hasCredentials && !pluginConnecting && (
-        <div className="mt-2">
+        <div className="mt-2 space-y-1.5">
           <div className="flex items-center gap-1.5 rounded-md bg-blue-500/10 border border-blue-500/20 px-2 py-1.5">
             <div className="h-2 w-2 rounded-full bg-blue-400 animate-pulse" />
             <span className="text-[10px] font-medium text-blue-400">waiting for client credentials...</span>
           </div>
+          <button
+            type="button"
+            onClick={handleAdvance}
+            disabled={advancing}
+            className="w-full rounded-md border border-border px-2 py-1.5 text-[10px] font-medium text-foreground hover:border-primary hover:text-primary transition-colors disabled:opacity-50"
+          >
+            {advancing ? "sending..." : "send credentials request"}
+          </button>
         </div>
       )}
 
@@ -662,13 +988,13 @@ export function BookingCard({
             disabled={pluginLoading}
             className="w-full rounded-md bg-gradient-to-r from-primary to-secondary px-2 py-1.5 text-[10px] font-bold text-white transition-all hover:shadow-md active:scale-[0.98] disabled:opacity-50"
           >
-            {pluginLoading ? "completing..." : "mark connected — advance to billing"}
+            {pluginLoading ? "completing..." : "mark connected — advance to payment"}
           </button>
         </div>
       )}
 
-      {/* ═══ STEP 7: billing (was step 6) ═══ */}
-      {currentStep === 7 && (
+      {/* ═══ STEP 11: payment ═══ */}
+      {currentStep === 11 && (
         <div className="mt-2">
           {isPaid ? (
             <div className="flex items-center gap-1.5 rounded-md bg-gradient-to-r from-primary/10 to-secondary/10 border border-primary/20 px-2 py-1.5">
@@ -684,8 +1010,8 @@ export function BookingCard({
         </div>
       )}
 
-      {/* ═══ STEP 8: satisfaction survey (was step 7) ═══ */}
-      {currentStep === 8 && (
+      {/* ═══ STEP 12: satisfaction survey ═══ */}
+      {currentStep === 12 && (
         <div className="mt-2">
           {npsScore != null ? (
             <div className="space-y-1">
@@ -697,16 +1023,26 @@ export function BookingCard({
               </div>
             </div>
           ) : (
-            <div className="flex items-center gap-1.5 rounded-md bg-blue-500/10 border border-blue-500/20 px-2 py-1.5">
-              <div className="h-2 w-2 rounded-full bg-blue-400 animate-pulse" />
-              <span className="text-[10px] font-medium text-blue-400">waiting for client survey...</span>
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-1.5 rounded-md bg-blue-500/10 border border-blue-500/20 px-2 py-1.5">
+                <div className="h-2 w-2 rounded-full bg-blue-400 animate-pulse" />
+                <span className="text-[10px] font-medium text-blue-400">waiting for client survey...</span>
+              </div>
+              <button
+                type="button"
+                onClick={handleAdvance}
+                disabled={advancing}
+                className="w-full rounded-md border border-border px-2 py-1.5 text-[10px] font-medium text-foreground hover:border-primary hover:text-primary transition-colors disabled:opacity-50"
+              >
+                {advancing ? "sending..." : "send survey link"}
+              </button>
             </div>
           )}
         </div>
       )}
 
-      {/* postmortem step 9 (internal) */}
-      {postmortemStatus && (
+      {/* postmortem (after step 12) */}
+      {postmortemStatus && currentStep && currentStep > 12 && (
         <div className="mt-2 space-y-1.5">
           {npsScore != null && (
             <div className="flex items-center justify-between rounded-md bg-gradient-to-r from-primary/10 to-secondary/10 border border-primary/20 px-2 py-1.5">
@@ -837,18 +1173,6 @@ export function BookingCard({
         )}
       </div>
 
-      {/* track link */}
-      {trackingSlug && (
-        <a
-          href={`/track/${trackingSlug}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-2 block text-center text-[10px] text-muted hover:text-primary transition-colors"
-        >
-          view tracker
-        </a>
-      )}
-
       {/* step advance/retreat arrows */}
       {currentStep && currentStep > 0 && (
         <div className="mt-2 flex items-center justify-between rounded-md bg-surface-light border border-border px-2 py-1">
@@ -864,12 +1188,12 @@ export function BookingCard({
             </svg>
           </button>
           <span className="text-[10px] font-medium text-muted">
-            step {currentStep} of 8
+            step {currentStep} of 12
           </span>
           <button
             type="button"
             onClick={handleAdvance}
-            disabled={advancing || !currentStep || currentStep >= 8}
+            disabled={advancing || !currentStep || currentStep >= 12}
             className="rounded p-1 text-muted hover:text-primary hover:bg-primary/10 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
             title="advance one step"
           >
