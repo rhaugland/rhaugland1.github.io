@@ -110,6 +110,7 @@ export function BookingCard({
   const [scheduleDemoTime, setScheduleDemoTime] = useState("");
   const [reviewMessage, setReviewMessage] = useState("");
   const [reviewSending, setReviewSending] = useState(false);
+  const [emailFullscreen, setEmailFullscreen] = useState<"discovery" | "demo" | null>(null);
 
   // build time — show elapsed time during builds
   useEffect(() => {
@@ -300,20 +301,6 @@ export function BookingCard({
     }
   }
 
-  async function handleRetreat() {
-    setAdvancing(true);
-    try {
-      const res = await fetch(`/api/booking/${id}/advance`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ direction: "back" }),
-      });
-      if (res.ok) router.refresh();
-    } finally {
-      setAdvancing(false);
-    }
-  }
-
   async function handleDiscoveryAction(action: string, meetingTimeVal?: string) {
     setDiscoveryAction(action);
     try {
@@ -466,7 +453,19 @@ export function BookingCard({
           {/* email scheduling UI */}
           {!discoveryEmailStatus && (
             <div className="rounded-md border border-border bg-surface-light p-2 space-y-1.5">
-              <p className="text-[9px] font-bold text-muted uppercase tracking-wide">discovery scheduling email</p>
+              <div className="flex items-center justify-between">
+                <p className="text-[9px] font-bold text-muted uppercase tracking-wide">discovery scheduling email</p>
+                <button
+                  type="button"
+                  onClick={() => setEmailFullscreen("discovery")}
+                  className="rounded p-0.5 text-muted hover:text-primary hover:bg-primary/10 transition-colors"
+                  title="expand editor"
+                >
+                  <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 4h-4m4 0l-5-5" />
+                  </svg>
+                </button>
+              </div>
               <textarea
                 value={emailBody}
                 onChange={(e) => setEmailBody(e.target.value)}
@@ -632,7 +631,19 @@ export function BookingCard({
           {/* demo email scheduling UI */}
           {!demoEmailStatus && (
             <div className="rounded-md border border-border bg-surface-light p-2 space-y-1.5">
-              <p className="text-[9px] font-bold text-muted uppercase tracking-wide">demo scheduling email</p>
+              <div className="flex items-center justify-between">
+                <p className="text-[9px] font-bold text-muted uppercase tracking-wide">demo scheduling email</p>
+                <button
+                  type="button"
+                  onClick={() => setEmailFullscreen("demo")}
+                  className="rounded p-0.5 text-muted hover:text-primary hover:bg-primary/10 transition-colors"
+                  title="expand editor"
+                >
+                  <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 4h-4m4 0l-5-5" />
+                  </svg>
+                </button>
+              </div>
               <textarea
                 value={demoEmailBody}
                 onChange={(e) => setDemoEmailBody(e.target.value)}
@@ -1173,34 +1184,50 @@ export function BookingCard({
         )}
       </div>
 
-      {/* step advance/retreat arrows */}
-      {currentStep && currentStep > 0 && (
-        <div className="mt-2 flex items-center justify-between rounded-md bg-surface-light border border-border px-2 py-1">
-          <button
-            type="button"
-            onClick={handleRetreat}
-            disabled={advancing || !currentStep || currentStep <= 1}
-            className="rounded p-1 text-muted hover:text-primary hover:bg-primary/10 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-            title="move back one step"
-          >
-            <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
-            </svg>
-          </button>
-          <span className="text-[10px] font-medium text-muted">
-            step {currentStep} of 12
-          </span>
-          <button
-            type="button"
-            onClick={handleAdvance}
-            disabled={advancing || !currentStep || currentStep >= 12}
-            className="rounded p-1 text-muted hover:text-primary hover:bg-primary/10 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-            title="advance one step"
-          >
-            <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
-            </svg>
-          </button>
+      {/* fullscreen email editor overlay */}
+      {emailFullscreen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={() => setEmailFullscreen(null)}>
+          <div className="w-full max-w-2xl mx-4 rounded-xl border border-border bg-surface shadow-2xl p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-bold text-foreground">
+                {emailFullscreen === "discovery" ? "discovery scheduling email" : "demo scheduling email"}
+              </p>
+              <button
+                type="button"
+                onClick={() => setEmailFullscreen(null)}
+                className="rounded p-1 text-muted hover:text-foreground hover:bg-surface-light transition-colors"
+                title="close"
+              >
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <textarea
+              value={emailFullscreen === "discovery" ? emailBody : demoEmailBody}
+              onChange={(e) => emailFullscreen === "discovery" ? setEmailBody(e.target.value) : setDemoEmailBody(e.target.value)}
+              className="w-full rounded-md border border-border px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none resize-none"
+              rows={14}
+              autoFocus
+            />
+            <button
+              type="button"
+              onClick={() => {
+                if (emailFullscreen === "discovery") {
+                  handleDiscoveryAction("send_email");
+                } else {
+                  handleDemoAction("send_email");
+                }
+                setEmailFullscreen(null);
+              }}
+              disabled={emailFullscreen === "discovery" ? discoveryAction === "send_email" : demoAction === "send_email"}
+              className="w-full rounded-md bg-gradient-to-r from-primary to-secondary px-3 py-2 text-sm font-bold text-white transition-all hover:shadow-md active:scale-[0.98] disabled:opacity-50"
+            >
+              {emailFullscreen === "discovery"
+                ? (discoveryAction === "send_email" ? "sending..." : "send discovery email")
+                : (demoAction === "send_email" ? "sending..." : "send demo email")}
+            </button>
+          </div>
         </div>
       )}
     </div>
