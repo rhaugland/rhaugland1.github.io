@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { BookingCard } from "./booking-card";
 import { ReviewAlert } from "./review-alert";
+import { SeedButton } from "./seed-button";
 
 const BOOKING_STEP_LABELS = [
   "intake build",
@@ -278,6 +279,7 @@ export default async function DashboardPage() {
                 : "no bookings yet"}
             </p>
           </div>
+          <SeedButton />
         </div>
 
         <div className="flex gap-4 overflow-x-auto pb-4">

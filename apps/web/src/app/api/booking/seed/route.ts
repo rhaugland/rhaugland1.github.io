@@ -2,9 +2,6 @@ import { NextResponse } from "next/server";
 import { prisma } from "@slushie/db";
 import { auth } from "@/lib/auth";
 import { nanoid } from "nanoid";
-import { createEventQueue, createEvent } from "@slushie/events";
-
-const pipelineQueue = createEventQueue("pipeline");
 
 const BOOKING_STEPS = [
   { step: 1, label: "intake build", subtitle: "we're already building your first prototype." },
@@ -21,22 +18,22 @@ const BOOKING_STEPS = [
   { step: 12, label: "satisfaction survey", subtitle: "how'd we do? we want to keep getting better." },
 ];
 
-const DEMO_DESCRIPTION = `I run a property management company called Bennett Properties. We manage 47 rental units across 3 buildings in downtown Portland.
+const DEMO_EMAIL = "ryanrhaugland@gmail.com";
 
-Right now our entire operation runs through Google Sheets. I have one master sheet that tracks every unit — tenant name, lease dates, monthly rent, maintenance requests, payment status. Every month I manually go through each row, check if rent came in via our Stripe account, mark it paid or overdue, then calculate our revenue and send a summary to my business partner.
-
-Maintenance requests come in through email or text. I copy-paste them into another tab of the same spreadsheet, assign them to our handyman, and track completion manually. I often lose track of requests or forget to follow up.
-
-What I need:
-1. A property management dashboard that pulls data from our Google Sheets master tracker and displays it beautifully — unit status, occupancy rates, revenue by building, upcoming lease renewals
-2. Integration with Stripe so I can see which tenants have paid, which are overdue, and total revenue in real-time without manually checking
-3. A maintenance request system that connects to the Google Sheet — new requests show up in the dashboard, I can assign them, track progress, and tenants get notified when complete
-4. Monthly reports auto-generated from the sheet data — revenue breakdown, occupancy trends, maintenance costs
-5. A tenant portal where renters can see their lease info, submit maintenance requests, and see payment history
-
-tools/tech stack: google sheets, stripe
-
-I need this to actually connect to our Google Sheet and Stripe account. The sheet has columns: Unit Number, Building, Tenant Name, Tenant Email, Lease Start, Lease End, Monthly Rent, Payment Status, Last Payment Date, Notes. Right now I have 47 rows of active tenants.`;
+const BUSINESSES = [
+  { name: "Bennett Properties", industry: "Property Management", contact: "Marcus Bennett", description: "Property management dashboard with Google Sheets + Stripe integration.\n\ntools/tech stack: google sheets, stripe" },
+  { name: "Greenleaf Nursery", industry: "Retail", contact: "Sarah Greenleaf", description: "Inventory and order management for a plant nursery.\n\ntools/tech stack: shopify, google sheets" },
+  { name: "Apex Fitness", industry: "Fitness", contact: "Jake Torres", description: "Member check-in and billing automation for a gym.\n\ntools/tech stack: stripe, google calendar" },
+  { name: "Coastal Catering", industry: "Food Service", contact: "Priya Patel", description: "Event booking and invoice pipeline for a catering company.\n\ntools/tech stack: quickbooks, google sheets" },
+  { name: "Northstar Tutoring", industry: "Education", contact: "David Kim", description: "Student scheduling and progress tracking for a tutoring service.\n\ntools/tech stack: google calendar, notion" },
+  { name: "Riverwalk Realty", industry: "Real Estate", contact: "Amy Chen", description: "Lead tracking and showing scheduler for a real estate team.\n\ntools/tech stack: google sheets, google calendar" },
+  { name: "Bolt Electrical", industry: "Trades", contact: "Mike Duran", description: "Job scheduling and estimate generation for an electrician.\n\ntools/tech stack: google sheets, quickbooks" },
+  { name: "Sunrise Bakery", industry: "Food & Bev", contact: "Lisa Nguyen", description: "Wholesale order tracking and delivery route planning.\n\ntools/tech stack: google sheets, stripe" },
+  { name: "Peak Consulting", industry: "Consulting", contact: "Tom Richards", description: "Client project tracker and automated status report emails.\n\ntools/tech stack: notion, google sheets" },
+  { name: "Harbor Marine", industry: "Marine Services", contact: "Dan Kowalski", description: "Boat maintenance scheduling and parts inventory.\n\ntools/tech stack: google sheets, quickbooks" },
+  { name: "Wildflower Events", industry: "Events", contact: "Megan Liu", description: "Event planning timeline and vendor coordination dashboard.\n\ntools/tech stack: google sheets, slack" },
+  { name: "Atlas Accounting", industry: "Finance", contact: "Rachel Stone", description: "Client document collection and tax prep workflow.\n\ntools/tech stack: quickbooks, google drive" },
+];
 
 export async function POST() {
   const session = await auth();
@@ -44,7 +41,6 @@ export async function POST() {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  // find or create the employee for the logged-in user
   let employee = await prisma.employee.findFirst({
     where: { email: { equals: session.user.email, mode: "insensitive" } },
   });
@@ -58,86 +54,101 @@ export async function POST() {
     });
   }
 
-  // create client
-  const client = await prisma.client.create({
-    data: {
-      name: "Bennett Properties",
-      industry: "Property Management",
-      contactName: "Marcus Bennett",
-      contactEmail: "marcus@bennettproperties.com",
-    },
-  });
+  const results = [];
 
-  // create the booking — assigned to the current user, no meetingTime
-  const booking = await prisma.booking.create({
-    data: {
-      name: "Marcus Bennett",
-      email: "marcus@bennettproperties.com",
-      businessName: "Bennett Properties",
-      plan: "TRIPLE_FREEZE",
-      description: DEMO_DESCRIPTION,
-      calendarEventId: `demo-event-${nanoid(10)}`,
-      clientId: client.id,
-      assigneeId: employee.id,
-    },
-  });
+  for (let stepNum = 1; stepNum <= 12; stepNum++) {
+    const biz = BUSINESSES[stepNum - 1];
 
-  // create a call record (transcript = booking description)
-  const call = await prisma.call.create({
-    data: {
-      clientId: client.id,
-      startedAt: new Date(),
-      endedAt: new Date(),
-      transcript: DEMO_DESCRIPTION,
-      coachingLog: [],
-    },
-  });
+    const client = await prisma.client.create({
+      data: {
+        name: biz.name,
+        industry: biz.industry,
+        contactName: biz.contact,
+        contactEmail: DEMO_EMAIL,
+      },
+    });
 
-  // create pipeline run
-  const pipelineRun = await prisma.pipelineRun.create({
-    data: {
-      clientId: client.id,
-      callId: call.id,
-      status: "RUNNING",
-    },
-  });
+    const booking = await prisma.booking.create({
+      data: {
+        name: biz.contact,
+        email: DEMO_EMAIL,
+        businessName: biz.name,
+        plan: "SINGLE_SCOOP",
+        description: biz.description,
+        clientId: client.id,
+        assigneeId: employee.id,
+      },
+    });
 
-  // create tracker at step 1 (active — intake build in progress)
-  const slug = nanoid(21);
-  const expiresAt = new Date();
-  expiresAt.setDate(expiresAt.getDate() + 30);
+    const call = await prisma.call.create({
+      data: {
+        clientId: client.id,
+        startedAt: new Date(),
+        endedAt: new Date(),
+        transcript: biz.description,
+        coachingLog: [],
+      },
+    });
 
-  const steps = BOOKING_STEPS.map((s, i) => ({
-    ...s,
-    status: i === 0 ? "active" : "pending",
-    completedAt: null as string | null,
-  }));
+    const pipelineRun = await prisma.pipelineRun.create({
+      data: {
+        clientId: client.id,
+        callId: call.id,
+        status: stepNum >= 12 ? "COMPLETED" : "RUNNING",
+      },
+    });
 
-  await prisma.tracker.create({
-    data: {
-      bookingId: booking.id,
-      pipelineRunId: pipelineRun.id,
-      slug,
-      currentStep: 1,
-      steps,
-      expiresAt,
-    },
-  });
+    // build steps array with correct statuses for this step
+    const steps = BOOKING_STEPS.map((s, i) => ({
+      ...s,
+      status: i < stepNum - 1 ? "done" : i === stepNum - 1 ? "active" : "pending",
+      completedAt: i < stepNum - 1 ? new Date().toISOString() : null,
+    }));
 
-  // dispatch call.ended event to trigger the analyst → builder pipeline
-  await pipelineQueue.add(
-    "call.ended",
-    createEvent("call.ended", pipelineRun.id, {
-      callId: call.id,
-      clientId: client.id,
-      duration: 0,
-    })
-  );
+    const slug = nanoid(21);
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 30);
 
-  return NextResponse.json({
-    ok: true,
-    bookingId: booking.id,
-    pipelineRunId: pipelineRun.id,
-    description: "Bennett Properties — property management with Google Sheets + Stripe integration",
-  });
+    await prisma.tracker.create({
+      data: {
+        bookingId: booking.id,
+        pipelineRunId: pipelineRun.id,
+        slug,
+        currentStep: stepNum,
+        steps,
+        expiresAt,
+        // set discovery fields for steps past 2
+        ...(stepNum > 2 && {
+          discoveryEmailStatus: "scheduled",
+          discoveryEmailSentAt: new Date(),
+        }),
+        // set demo fields for steps past 5
+        ...(stepNum > 5 && {
+          demoEmailStatus: "scheduled",
+          demoEmailSentAt: new Date(),
+          demoMeetingTime: new Date(),
+        }),
+        // set review fields for step 8
+        ...(stepNum === 8 && {
+          reviewMessages: [
+            { from: "employee", text: "can we make the charts more prominent on the dashboard?", at: new Date().toISOString() },
+            { from: "system", text: "updated — charts are now the hero section of the dashboard.", at: new Date().toISOString() },
+          ],
+          reviewStatus: "ready",
+        }),
+      },
+    });
+
+    // mark completed bookings
+    if (stepNum > 12) {
+      await prisma.booking.update({
+        where: { id: booking.id },
+        data: { status: "COMPLETED" },
+      });
+    }
+
+    results.push({ step: stepNum, label: BOOKING_STEPS[stepNum - 1].label, businessName: biz.name });
+  }
+
+  return NextResponse.json({ ok: true, seeded: results });
 }

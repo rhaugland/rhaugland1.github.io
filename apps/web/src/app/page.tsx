@@ -1,7 +1,5 @@
 import Link from "next/link";
 import { BookingForm } from "./booking-form";
-import { DemoButtons } from "./demo-buttons";
-import { DemoHeaderButtons } from "./demo-header-buttons";
 
 export default function Home() {
   return (
@@ -13,7 +11,6 @@ export default function Home() {
             slushie
           </span>
           <div className="flex items-center gap-3">
-            <DemoHeaderButtons />
             <a
               href="#contact"
               className="rounded-full bg-gradient-to-r from-primary to-secondary px-5 py-2 text-sm font-semibold text-white transition-transform hover:scale-105"
@@ -40,12 +37,12 @@ export default function Home() {
             workflow automation for small business
           </p>
           <h1 className="mt-4 text-4xl font-extrabold leading-tight md:text-6xl">
-            one meeting. one workflow. done.
+            two meetings. one workflow problem. solved.
           </h1>
           <p className="mx-auto mt-6 max-w-xl text-lg text-white/80">
-            you hop on a call, tell us what's broken, sip your coffee, and we
-            build it right there. by tomorrow, it's plugged into your tools and
-            running.
+            you tell us the problem, we build a prototype. you see the demo,
+            give feedback, and we polish it. two calls, zero busywork — your
+            workflow is automated and plugged into your tools.
           </p>
           <a
             href="#contact"
@@ -54,7 +51,7 @@ export default function Home() {
             book your blend →
           </a>
           <p className="mt-4 text-sm text-white/60">
-            60 minutes. that's it. we handle the rest.
+            two calls. that's it. we handle the rest.
           </p>
         </div>
       </section>
@@ -79,11 +76,11 @@ export default function Home() {
                 1
               </div>
               <div>
-                <h3 className="text-lg font-bold text-foreground">you talk, we listen</h3>
+                <h3 className="text-lg font-bold text-foreground">you tell us the problem</h3>
                 <p className="mt-1 text-sm text-muted">
-                  hop on a 60-minute call. walk us through the messy spreadsheet,
+                  hop on a discovery call. walk us through the messy spreadsheet,
                   the copy-paste nightmare, the thing that eats your afternoon. we
-                  get it.
+                  listen, then we build a prototype.
                 </p>
               </div>
             </div>
@@ -94,11 +91,11 @@ export default function Home() {
                 2
               </div>
               <div>
-                <h3 className="text-lg font-bold text-foreground">we build it live</h3>
+                <h3 className="text-lg font-bold text-foreground">you see the demo, we refine</h3>
                 <p className="mt-1 text-sm text-muted">
-                  while you're still on the call, we start building. you watch
-                  your workflow take shape in real time. it's like magic, but it's
-                  actually just us moving fast.
+                  we walk you through the build on a second call. you tell us
+                  what's right, what's off, and what's missing. we take your
+                  feedback and polish it until it's exactly what you need.
                 </p>
               </div>
             </div>
@@ -110,12 +107,12 @@ export default function Home() {
               </div>
               <div>
                 <h3 className="text-lg font-bold text-foreground">
-                  wake up to it working
+                  approve it, we plug it in
                 </h3>
                 <p className="mt-1 text-sm text-muted">
-                  we plug it into your tools overnight — google sheets, quickbooks,
-                  whatever you use. by morning, your workflow is running on
-                  autopilot.
+                  you approve the final build, hand us your credentials, and we
+                  connect it to your tools — google sheets, quickbooks, whatever
+                  you use. your workflow problem is solved.
                 </p>
               </div>
             </div>

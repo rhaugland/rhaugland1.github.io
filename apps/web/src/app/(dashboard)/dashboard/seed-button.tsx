@@ -26,7 +26,7 @@ export function SeedButton() {
       disabled={loading}
       className="rounded-lg border border-dashed border-border px-3 py-1.5 text-xs font-medium text-muted hover:border-primary hover:text-primary transition-colors disabled:opacity-50"
     >
-      {loading ? "seeding..." : "+ demo booking"}
+      {loading ? "seeding..." : "+ seed all steps"}
     </button>
   );
 }
