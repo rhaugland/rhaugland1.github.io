@@ -604,3 +604,94 @@ export async function sendNextWorkflowReady({
     `),
   });
 }
+
+// ── client approval link (step 9) ──
+
+export async function sendClientApprovalLink({
+  to,
+  name,
+  businessName,
+  approveUrl,
+}: {
+  to: string;
+  name: string;
+  businessName: string;
+  approveUrl: string;
+}) {
+  await send({
+    to,
+    subject: `your build is ready for review — ${businessName}`,
+    html: layout(`
+      <h2 style="margin:0 0 8px;font-size:18px;color:#0F172A;">your build is ready</h2>
+      <p style="margin:0 0 16px;font-size:14px;color:#64748B;line-height:1.6;">
+        hi ${name}, we've finished building and polishing your tool for ${accent(businessName)}. click below to review it and let us know if it's good to go.
+      </p>
+      <div style="text-align:center;margin:20px 0;">
+        ${button(approveUrl, "review &amp; approve")}
+      </div>
+    `),
+  });
+}
+
+// ── credentials request (step 10) ──
+
+export async function sendCredentialsRequest({
+  to,
+  name,
+  businessName,
+  credentialsUrl,
+  services,
+}: {
+  to: string;
+  name: string;
+  businessName: string;
+  credentialsUrl: string;
+  services: string[];
+}) {
+  const serviceList = services
+    .map(s => `<li style="margin:4px 0;font-size:14px;color:#18181b;">${s}</li>`)
+    .join("");
+
+  await send({
+    to,
+    subject: `credentials needed — ${businessName}`,
+    html: layout(`
+      <h2 style="margin:0 0 8px;font-size:18px;color:#0F172A;">almost there — we need your credentials</h2>
+      <p style="margin:0 0 16px;font-size:14px;color:#64748B;line-height:1.6;">
+        hi ${name}, to connect your tool to the real services, we need API keys or login credentials for:
+      </p>
+      <ul style="margin:0 0 24px;padding-left:20px;">${serviceList}</ul>
+      <div style="text-align:center;margin:20px 0;">
+        ${button(credentialsUrl, "submit credentials")}
+      </div>
+    `),
+  });
+}
+
+// ── survey link (step 12) ──
+
+export async function sendSurveyLink({
+  to,
+  name,
+  businessName,
+  surveyUrl,
+}: {
+  to: string;
+  name: string;
+  businessName: string;
+  surveyUrl: string;
+}) {
+  await send({
+    to,
+    subject: `how'd we do? — ${businessName}`,
+    html: layout(`
+      <h2 style="margin:0 0 8px;font-size:18px;color:#0F172A;">your feedback matters</h2>
+      <p style="margin:0 0 16px;font-size:14px;color:#64748B;line-height:1.6;">
+        hi ${name}, thanks for choosing slushie for ${accent(businessName)}. we'd love to hear how the experience was — it only takes a minute.
+      </p>
+      <div style="text-align:center;margin:20px 0;">
+        ${button(surveyUrl, "take the survey")}
+      </div>
+    `),
+  });
+}
