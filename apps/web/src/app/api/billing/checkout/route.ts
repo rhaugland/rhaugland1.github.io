@@ -78,7 +78,6 @@ export async function POST(request: Request) {
       to: tracker.booking.email,
       name: tracker.booking.name,
       businessName: tracker.booking.businessName,
-      slug: tracker.slug,
     }).catch((err) => console.error("[email] survey open (free) failed:", err));
 
     return NextResponse.json({ free: true });
@@ -110,8 +109,8 @@ export async function POST(request: Request) {
       bookingId: tracker.booking.id,
       slug: tracker.slug,
     },
-    success_url: `${origin}/track/${tracker.slug}?paid=true`,
-    cancel_url: `${origin}/track/${tracker.slug}`,
+    success_url: `${origin}/?paid=true`,
+    cancel_url: `${origin}/`,
     expires_at: Math.floor(Date.now() / 1000) + 1800, // 30 minutes
   });
 

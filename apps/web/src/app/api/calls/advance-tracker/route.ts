@@ -51,7 +51,6 @@ export async function POST(request: Request) {
         to: booking.email,
         name: booking.name,
         businessName: booking.businessName,
-        slug: tracker.slug,
       }).catch((err) => console.error("[email] team reviewing failed:", err));
     }
   }

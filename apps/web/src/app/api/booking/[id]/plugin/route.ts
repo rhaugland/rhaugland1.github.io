@@ -121,14 +121,13 @@ export async function POST(
     TRIPLE_FREEZE: "$8,500",
   };
 
-  if (booking.email && tracker.slug) {
+  if (booking.email) {
     sendPaymentDue({
       to: booking.email,
       name: booking.name,
       businessName: booking.businessName,
       planLabel: PLAN_LABELS[booking.plan] ?? booking.plan,
       planPrice: PLAN_PRICES[booking.plan] ?? "$0",
-      slug: tracker.slug,
     }).catch((err) => console.error("[email] payment due failed:", err));
   }
 

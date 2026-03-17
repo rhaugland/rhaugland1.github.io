@@ -38,7 +38,7 @@ export function BookingForm() {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [booked, setBooked] = useState<{ slug: string; bookingId: string } | null>(null);
+  const [booked, setBooked] = useState<{ bookingId: string } | null>(null);
   const techInputRef = useRef<HTMLInputElement>(null);
 
   function addTag(tag: string) {
@@ -99,7 +99,7 @@ export function BookingForm() {
       }
 
       const data = await res.json();
-      setBooked({ slug: data.trackingSlug, bookingId: data.bookingId });
+      setBooked({ bookingId: data.bookingId });
     } catch {
       setError("something went wrong. please try again.");
       setSubmitting(false);
@@ -114,12 +114,6 @@ export function BookingForm() {
 
   const maxTools = planOptions.find((o) => o.value === plan)!.maxTools;
   const atToolLimit = techStack.length >= maxTools;
-
-  const trackingUrl = booked
-    ? `${typeof window !== "undefined" ? window.location.origin : ""}/track/${booked.slug}`
-    : "";
-
-  const [copied, setCopied] = useState(false);
 
   if (booked) {
     return (
@@ -136,31 +130,11 @@ export function BookingForm() {
           </p>
         </div>
 
-        {/* tracking link */}
         <div className="rounded-xl bg-surface border border-border p-4 text-left space-y-2">
-          <p className="text-xs font-medium text-muted">your tracking link</p>
-          <button
-            type="button"
-            onClick={() => {
-              navigator.clipboard.writeText(trackingUrl);
-              setCopied(true);
-              setTimeout(() => setCopied(false), 2000);
-            }}
-            className="w-full rounded-lg border border-border bg-surface-light px-3 py-2.5 text-left text-xs text-foreground break-all active:bg-white/10 transition-colors"
-          >
-            {trackingUrl}
-          </button>
-          <p className="text-xs text-muted">
-            {copied ? "copied!" : "tap to copy — bookmark it to track every step from build to delivery."}
+          <p className="text-sm text-muted">
+            check your email for a confirmation. we'll send you updates as your build progresses.
           </p>
         </div>
-
-        <a
-          href={`/track/${booked.slug}`}
-          className="block w-full rounded-lg bg-gradient-to-r from-primary to-secondary py-3.5 text-sm font-bold text-white shadow-lg transition-all hover:shadow-xl active:scale-[0.98]"
-        >
-          view your progress
-        </a>
       </div>
     );
   }

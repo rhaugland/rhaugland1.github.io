@@ -115,9 +115,7 @@ export async function POST(
     timestamp: Date.now(),
     data: {
       clientName: run.client.name,
-      trackerUrl: run.tracker?.slug
-        ? `slushie.agency/track/${run.tracker.slug}`
-        : "",
+      trackerUrl: "",
       prototypeUrl,
       message: `your tool is ready! take a look: ${prototypeUrl}`,
     },

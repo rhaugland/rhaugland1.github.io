@@ -33,16 +33,6 @@ export function BookingActions({
 
   return (
     <div className="flex items-center gap-2">
-      {trackingSlug && (
-        <a
-          href={`/track/${trackingSlug}`}
-          target="_blank"
-          rel="noopener"
-          className="text-xs text-primary hover:underline"
-        >
-          track
-        </a>
-      )}
       {canAdvance && (
         <button
           onClick={handleAdvance}

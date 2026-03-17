@@ -8,10 +8,6 @@ function baseUrl(): string {
   return process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 }
 
-function trackerUrl(slug: string): string {
-  return `${baseUrl()}/track/${slug}`;
-}
-
 // ── shared email wrapper ──
 
 async function send({
@@ -79,22 +75,18 @@ function mutedBox(content: string): string {
   return `<div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;padding:16px;margin-bottom:20px;">${content}</div>`;
 }
 
-// ── 1. booking confirmed — tracker link + credentials ──
+// ── 1. booking confirmed ──
 
 export async function sendBookingConfirmed({
   to,
   name,
   businessName,
   planLabel,
-  slug,
-  tempPassword,
 }: {
   to: string;
   name: string;
   businessName: string;
   planLabel: string;
-  slug: string;
-  tempPassword: string;
 }) {
   await send({
     to,
@@ -104,20 +96,8 @@ export async function sendBookingConfirmed({
       <p style="margin:0 0 16px;font-size:14px;color:#64748B;">
         your ${accent(planLabel)} for ${accent(businessName)} is confirmed. we're already building your first prototype — your rep will reach out to schedule a discovery call.
       </p>
-      ${mutedBox(`
-        <p style="margin:0 0 8px;font-size:12px;color:#64748B;">your tracker login</p>
-        <p style="margin:0 0 4px;font-size:13px;color:#0F172A;"><strong>email:</strong> ${to}</p>
-        <p style="margin:0 0 8px;font-size:13px;color:#0F172A;"><strong>temporary password:</strong> <code style="background:#FEE2E2;padding:2px 6px;border-radius:4px;font-size:14px;font-weight:700;color:#DC2626;">${tempPassword}</code></p>
-        <p style="margin:0;font-size:11px;color:#94A3B8;">you'll be asked to set your own password on first login.</p>
-      `)}
-      <p style="margin:0 0 8px;font-size:14px;color:#64748B;">
-        track every step of your build in real time:
-      </p>
-      <div style="text-align:center;margin:20px 0;">
-        ${button(trackerUrl(slug), "view your tracker")}
-      </div>
-      <p style="margin:16px 0 0;font-size:12px;color:#94A3B8;">
-        bookmark this link — it updates automatically as we work on your build.
+      <p style="margin:0 0 16px;font-size:14px;color:#64748B;">
+        we'll be in touch about next steps. you'll receive email updates as your build progresses.
       </p>
     `),
   });
@@ -129,12 +109,10 @@ export async function sendDiscoveryScheduling({
   to,
   name,
   businessName,
-  slug,
 }: {
   to: string;
   name: string;
   businessName: string;
-  slug: string;
 }) {
   await send({
     to,
@@ -150,12 +128,6 @@ export async function sendDiscoveryScheduling({
       <p style="margin:0 0 16px;font-size:14px;color:#64748B;">
         just reply to this email with a few times that work for you, and we'll get it on the calendar.
       </p>
-      <div style="text-align:center;margin:20px 0;">
-        ${button(trackerUrl(slug), "view your prototype")}
-      </div>
-      <p style="margin:16px 0 0;font-size:12px;color:#94A3B8;">
-        you can also preview your first build on your tracker page while we set up the call.
-      </p>
     `),
   });
 }
@@ -166,13 +138,11 @@ export async function sendDemoScheduling({
   to,
   name,
   businessName,
-  slug,
   customBody,
 }: {
   to: string;
   name: string;
   businessName: string;
-  slug: string;
   customBody?: string;
 }) {
   await send({
@@ -192,12 +162,6 @@ export async function sendDemoScheduling({
           just reply to this email with a few times that work for you, and we'll get the demo on the calendar.
         </p>
       `}
-      <div style="text-align:center;margin:20px 0;">
-        ${button(trackerUrl(slug), "view your build")}
-      </div>
-      <p style="margin:16px 0 0;font-size:12px;color:#94A3B8;">
-        you can preview your build on your tracker page while we set up the demo.
-      </p>
     `),
   });
 }
@@ -209,13 +173,11 @@ export async function sendMeetingConfirmed({
   name,
   meetingTime,
   callUrl,
-  slug,
 }: {
   to: string;
   name: string;
   meetingTime: string;
   callUrl: string;
-  slug: string;
 }) {
   const meetingLabel = new Date(meetingTime).toLocaleDateString("en-US", {
     weekday: "long",
@@ -240,9 +202,6 @@ export async function sendMeetingConfirmed({
       <div style="text-align:center;margin:20px 0;">
         ${button(callUrl, "join your call")}
       </div>
-      <p style="margin:16px 0 0;font-size:12px;color:#94A3B8;">
-        you can also join from your <a href="${trackerUrl(slug)}" style="color:#3B5BDB;text-decoration:none;">tracker page</a>.
-      </p>
     `),
   });
 }
@@ -253,12 +212,10 @@ export async function sendTeamReviewing({
   to,
   name,
   businessName,
-  slug,
 }: {
   to: string;
   name: string;
   businessName: string;
-  slug: string;
 }) {
   await send({
     to,
@@ -271,12 +228,6 @@ export async function sendTeamReviewing({
       <p style="margin:0 0 16px;font-size:14px;color:#64748B;">
         you don't need to do anything yet — we'll email you when it's your turn to review.
       </p>
-      <div style="text-align:center;margin:20px 0;">
-        ${button(trackerUrl(slug), "check your tracker")}
-      </div>
-      <p style="margin:16px 0 0;font-size:12px;color:#94A3B8;">
-        your tracker updates in real time so you can follow along.
-      </p>
     `),
   });
 }
@@ -287,12 +238,10 @@ export async function sendBuildReadyForApproval({
   to,
   name,
   businessName,
-  slug,
 }: {
   to: string;
   name: string;
   businessName: string;
-  slug: string;
 }) {
   await send({
     to,
@@ -300,14 +249,11 @@ export async function sendBuildReadyForApproval({
     html: layout(`
       <h2 style="margin:0 0 8px;font-size:18px;color:#0F172A;">hey ${name},</h2>
       <p style="margin:0 0 16px;font-size:14px;color:#64748B;">
-        your build for ${accent(businessName)} is ready for your review. take a look and let us know if it's good to go or if you'd like changes.
+        your build for ${accent(businessName)} is ready for your review. we'll send you a link to review and approve shortly.
       </p>
       <p style="margin:0 0 16px;font-size:14px;color:#64748B;">
         we'll keep iterating until it's exactly right.
       </p>
-      <div style="text-align:center;margin:20px 0;">
-        ${button(trackerUrl(slug), "approve your build")}
-      </div>
     `),
   });
 }
@@ -318,12 +264,10 @@ export async function sendCredentialsNeeded({
   to,
   name,
   businessName,
-  slug,
 }: {
   to: string;
   name: string;
   businessName: string;
-  slug: string;
 }) {
   await send({
     to,
@@ -334,11 +278,8 @@ export async function sendCredentialsNeeded({
         your build for ${accent(businessName)} is approved. now we need your workflow tool credentials so we can connect everything up.
       </p>
       <p style="margin:0 0 16px;font-size:14px;color:#64748B;">
-        head to your tracker to securely submit your logins — we'll handle the rest.
+        we'll send you a secure link to submit your credentials shortly.
       </p>
-      <div style="text-align:center;margin:20px 0;">
-        ${button(trackerUrl(slug), "submit credentials")}
-      </div>
     `),
   });
 }
@@ -351,14 +292,12 @@ export async function sendPaymentDue({
   businessName,
   planLabel,
   planPrice,
-  slug,
 }: {
   to: string;
   name: string;
   businessName: string;
   planLabel: string;
   planPrice: string;
-  slug: string;
 }) {
   await send({
     to,
@@ -377,9 +316,9 @@ export async function sendPaymentDue({
           <p style="margin:0;font-size:24px;font-weight:800;color:#0F172A;">${planPrice}</p>
         </div>
       `)}
-      <div style="text-align:center;margin:20px 0;">
-        ${button(trackerUrl(slug), "pay now")}
-      </div>
+      <p style="margin:0 0 16px;font-size:14px;color:#64748B;">
+        we'll send you a payment link shortly.
+      </p>
       <p style="margin:16px 0 0;font-size:12px;color:#94A3B8;">
         secure payment via stripe.
       </p>
@@ -393,12 +332,10 @@ export async function sendSurveyOpen({
   to,
   name,
   businessName,
-  slug,
 }: {
   to: string;
   name: string;
   businessName: string;
-  slug: string;
 }) {
   await send({
     to,
@@ -409,11 +346,8 @@ export async function sendSurveyOpen({
         your ${accent(businessName)} build is complete and fully unlocked.
       </p>
       <p style="margin:0 0 16px;font-size:14px;color:#64748B;">
-        take 30 seconds to fill out our survey and you'll get a ${accent("free workflow build")} as a thank you.
+        take 30 seconds to fill out our survey and you'll get a ${accent("free workflow build")} as a thank you. we'll send you the survey link shortly.
       </p>
-      <div style="text-align:center;margin:20px 0;">
-        ${button(trackerUrl(slug), "take the survey")}
-      </div>
     `),
   });
 }
@@ -424,7 +358,6 @@ export async function sendThankYou({
   to,
   name,
   businessName,
-  slug,
   nextWorkflowBookingId,
   workflowNumber,
   totalWorkflows,
@@ -432,7 +365,6 @@ export async function sendThankYou({
   to: string;
   name: string;
   businessName: string;
-  slug: string;
   nextWorkflowBookingId?: string;
   workflowNumber?: number;
   totalWorkflows?: number;
@@ -459,48 +391,12 @@ export async function sendThankYou({
           ${button(nextWorkflowBookingId ? `${baseUrl()}/book/next/${nextWorkflowBookingId}` : `${baseUrl()}/book`, "book your next workflow")}
         </div>
       ` : `
-        <div style="text-align:center;margin:20px 0;">
-          ${button(trackerUrl(slug), "view your build")}
-        </div>
+        <p style="margin:0 0 16px;font-size:14px;color:#64748B;">
+          your build is live and ready to use.
+        </p>
       `}
       <p style="margin:16px 0 0;font-size:12px;color:#94A3B8;">
         need another workflow? we're always here. just book a new session.
-      </p>
-    `),
-  });
-}
-
-// ── password updated — re-send credentials ──
-
-export async function sendPasswordUpdated({
-  to,
-  name,
-  slug,
-  newPassword,
-}: {
-  to: string;
-  name: string;
-  slug: string;
-  newPassword: string;
-}) {
-  await send({
-    to,
-    subject: "your slushie credentials have been updated",
-    html: layout(`
-      <h2 style="margin:0 0 8px;font-size:18px;color:#0F172A;">hey ${name},</h2>
-      <p style="margin:0 0 16px;font-size:14px;color:#64748B;">
-        your password has been updated. here are your credentials for safekeeping.
-      </p>
-      ${mutedBox(`
-        <p style="margin:0 0 8px;font-size:12px;color:#64748B;">your tracker login</p>
-        <p style="margin:0 0 4px;font-size:13px;color:#0F172A;"><strong>email:</strong> ${to}</p>
-        <p style="margin:0 0 8px;font-size:13px;color:#0F172A;"><strong>password:</strong> <code style="background:#FEE2E2;padding:2px 6px;border-radius:4px;font-size:14px;font-weight:700;color:#DC2626;">${newPassword}</code></p>
-      `)}
-      <div style="text-align:center;margin:20px 0;">
-        ${button(trackerUrl(slug), "view your tracker")}
-      </div>
-      <p style="margin:16px 0 0;font-size:12px;color:#94A3B8;">
-        keep this email safe — it contains your login credentials.
       </p>
     `),
   });
@@ -513,13 +409,11 @@ export async function sendPaymentFailed({
   name,
   businessName,
   planLabel,
-  slug,
 }: {
   to: string;
   name: string;
   businessName: string;
   planLabel: string;
-  slug: string;
 }) {
   await send({
     to,
@@ -529,11 +423,8 @@ export async function sendPaymentFailed({
       <p style="margin:0 0 16px;font-size:14px;color:#64748B;">
         your payment for the ${accent(planLabel)} build for ${accent(businessName)} didn't complete. no worries — your build is safe and waiting.
       </p>
-      <div style="text-align:center;margin:20px 0;">
-        ${button(trackerUrl(slug), "retry payment")}
-      </div>
-      <p style="margin:16px 0 0;font-size:12px;color:#94A3B8;">
-        if you're having trouble, just reply to this email and we'll help.
+      <p style="margin:0 0 16px;font-size:14px;color:#64748B;">
+        reply to this email and we'll send you a new payment link.
       </p>
     `),
   });

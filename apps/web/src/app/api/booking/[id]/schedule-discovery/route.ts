@@ -43,7 +43,6 @@ export async function POST(
       to: booking.email,
       name: booking.name,
       businessName: booking.businessName,
-      slug: tracker.slug,
     }).catch((err) => console.error("[email] discovery scheduling failed:", err));
 
     await prisma.tracker.update({

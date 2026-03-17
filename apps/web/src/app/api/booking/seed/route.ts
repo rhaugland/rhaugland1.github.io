@@ -137,7 +137,6 @@ export async function POST() {
   return NextResponse.json({
     ok: true,
     bookingId: booking.id,
-    trackingSlug: slug,
     pipelineRunId: pipelineRun.id,
     description: "Bennett Properties — property management with Google Sheets + Stripe integration",
   });

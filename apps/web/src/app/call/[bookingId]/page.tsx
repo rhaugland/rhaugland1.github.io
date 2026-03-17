@@ -12,7 +12,7 @@ export default async function CustomerCallPage({
     where: { id: bookingId },
     include: {
       tracker: {
-        select: { slug: true, currentStep: true, pipelineRunId: true },
+        select: { id: true, currentStep: true, steps: true },
       },
     },
   });
@@ -95,14 +95,6 @@ export default async function CustomerCallPage({
                 </div>
               </div>
 
-              {booking.tracker?.slug && (
-                <a
-                  href={`/track/${booking.tracker.slug}`}
-                  className="mt-4 block text-xs text-muted hover:text-primary transition-colors"
-                >
-                  view your tracker
-                </a>
-              )}
             </>
           ) : (
             <>
@@ -115,14 +107,6 @@ export default async function CustomerCallPage({
               <p className="mt-4 text-xs text-muted">
                 come back on the day of your meeting to join.
               </p>
-              {booking.tracker?.slug && (
-                <a
-                  href={`/track/${booking.tracker.slug}`}
-                  className="mt-4 inline-block rounded-lg border-2 border-primary px-4 py-2 text-sm font-medium text-primary hover:bg-primary/5 transition-colors"
-                >
-                  view your tracker
-                </a>
-              )}
             </>
           )}
         </div>

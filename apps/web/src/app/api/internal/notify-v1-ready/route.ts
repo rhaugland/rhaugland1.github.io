@@ -31,8 +31,7 @@ export async function POST(request: Request) {
       to: booking.email,
       name: booking.name,
       meetingTime: booking.meetingTime?.toISOString() ?? "",
-      callUrl: `${baseUrl}/track/${tracker.slug}`,
-      slug: tracker.slug,
+      callUrl: `${baseUrl}/call/${tracker.bookingId}`,
     }).catch((err) => console.error("[email] v1 ready meeting notification failed:", err));
 
     return NextResponse.json({ ok: true });

@@ -164,7 +164,6 @@ export async function PATCH(
     to: booking.email,
     name: booking.name,
     businessName: booking.businessName,
-    slug: tracker.slug,
   };
 
   try {

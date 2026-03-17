@@ -79,12 +79,11 @@ export async function POST(
     );
 
     // email client: build is ready for their review (step 4)
-    if (nextStep === 4 && booking.email && tracker.slug) {
+    if (nextStep === 4 && booking.email) {
       sendBuildReadyForApproval({
         to: booking.email,
         name: booking.name,
         businessName: booking.businessName,
-        slug: tracker.slug,
       }).catch((err) => console.error("[email] build ready failed:", err));
     }
 

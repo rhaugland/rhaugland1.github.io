@@ -1,9 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@slushie/db";
 import { nanoid } from "nanoid";
-import bcrypt from "bcryptjs";
 import { sendBookingConfirmed } from "@/lib/email";
-import { generateTempPassword } from "@/lib/tracker-auth";
 import { createEventQueue, createEvent } from "@slushie/events";
 
 const pipelineQueue = createEventQueue("pipeline");
@@ -136,9 +134,6 @@ export async function POST(request: Request) {
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 30);
 
-    const tempPassword = generateTempPassword();
-    const passwordHash = await bcrypt.hash(tempPassword, 10);
-
     const steps = BOOKING_STEPS.map((s, i) => ({
       ...s,
       status: i === 0 ? "active" : "pending",
@@ -153,8 +148,6 @@ export async function POST(request: Request) {
         currentStep: 1,
         steps,
         expiresAt,
-        passwordHash,
-        mustChangePassword: true,
       },
     });
 
@@ -174,12 +167,9 @@ export async function POST(request: Request) {
       name: parent.name,
       businessName: parent.businessName,
       planLabel: `${planLabels[parent.plan]} — workflow ${nextWorkflowNumber} of ${totalWorkflows}`,
-      slug,
-      tempPassword,
     }).catch((err) => console.error("[email] next workflow booking confirmed failed:", err));
 
     return NextResponse.json({
-      trackingSlug: tracker.slug,
       bookingId: booking.id,
       workflowNumber: nextWorkflowNumber,
     });

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 
 interface NextWorkflowFormProps {
   bookingId: string;
@@ -20,10 +19,10 @@ export function NextWorkflowForm({
   workflowNumber,
   totalWorkflows,
 }: NextWorkflowFormProps) {
-  const router = useRouter();
   const [description, setDescription] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -48,12 +47,34 @@ export function NextWorkflowForm({
         return;
       }
 
-      router.push(`/track/${data.trackingSlug}`);
+      setSuccess(true);
     } catch {
       setError("something went wrong. please try again.");
     } finally {
       setSubmitting(false);
     }
+  }
+
+  if (success) {
+    return (
+      <main className="flex min-h-screen flex-col items-center justify-center bg-background px-4 py-10">
+        <div className="w-full max-w-md text-center">
+          <h1 className="text-2xl sm:text-3xl font-extrabold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">slushie</h1>
+          <div className="mt-6 rounded-2xl bg-surface shadow-lg backdrop-blur-sm p-6 space-y-4">
+            <div className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-primary/20 to-secondary/20">
+              <svg className="h-7 w-7 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <p className="text-sm font-bold text-foreground">we're on it!</p>
+            <p className="text-xs text-muted">
+              workflow {workflowNumber} of {totalWorkflows} for {businessName} is now being built. check your email for updates.
+            </p>
+          </div>
+          <p className="mt-6 text-center text-xs text-muted/60">powered by slushie</p>
+        </div>
+      </main>
+    );
   }
 
   return (

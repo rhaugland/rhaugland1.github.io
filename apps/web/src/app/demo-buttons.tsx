@@ -3,11 +3,10 @@
 import { useState } from "react";
 
 interface DemoResult {
-  trackingSlug: string;
-  tempPassword: string;
   email: string;
   name: string;
   businessName: string;
+  bookingId: string;
 }
 
 export function DemoButtons() {
@@ -41,8 +40,6 @@ export function DemoButtons() {
   }
 
   if (result) {
-    const trackerUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/track/${result.trackingSlug}`;
-
     return (
       <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm p-6 space-y-4">
         <div className="text-center">
@@ -54,36 +51,17 @@ export function DemoButtons() {
 
         <div className="rounded-lg bg-white/10 p-3 space-y-2">
           <div>
-            <p className="text-[10px] text-white/50">client tracker</p>
-            <a
-              href={`/track/${result.trackingSlug}`}
-              className="text-xs text-white hover:text-primary transition-colors break-all"
-            >
-              {trackerUrl}
-            </a>
-          </div>
-          <div>
-            <p className="text-[10px] text-white/50">login</p>
-            <p className="text-xs text-white">
-              {result.email} / <code className="bg-white/10 px-1 rounded text-primary font-bold">{result.tempPassword}</code>
-            </p>
+            <p className="text-[10px] text-white/50">client email</p>
+            <p className="text-xs text-white">{result.email}</p>
           </div>
         </div>
 
         <div className="flex gap-2">
           <a
-            href={`/track/${result.trackingSlug}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex-1 rounded-lg bg-gradient-to-r from-primary to-secondary px-4 py-2.5 text-center text-xs font-bold text-white transition-all hover:shadow-lg active:scale-[0.98]"
-          >
-            open client view
-          </a>
-          <a
             href="/dashboard"
             target="_blank"
             rel="noopener noreferrer"
-            className="flex-1 rounded-lg border border-white/20 px-4 py-2.5 text-center text-xs font-medium text-white hover:bg-white/10 transition-colors"
+            className="flex-1 rounded-lg bg-gradient-to-r from-primary to-secondary px-4 py-2.5 text-center text-xs font-bold text-white transition-all hover:shadow-lg active:scale-[0.98]"
           >
             open admin dashboard
           </a>

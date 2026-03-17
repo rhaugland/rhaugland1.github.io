@@ -87,7 +87,6 @@ export async function POST(request: Request) {
         to: tracker.booking.email,
         name: tracker.booking.name,
         businessName: tracker.booking.businessName,
-        slug: tracker.slug,
       }).catch((err) => console.error("[email] survey open failed:", err));
     }
   }
@@ -122,7 +121,6 @@ export async function POST(request: Request) {
           name: tracker.booking.name,
           businessName: tracker.booking.businessName,
           planLabel: planLabels[tracker.booking.plan] ?? tracker.booking.plan,
-          slug: sessionSlug,
         }).catch((err) => console.error("[email] payment failed notification failed:", err));
       }
     }

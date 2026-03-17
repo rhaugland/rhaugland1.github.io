@@ -50,10 +50,10 @@ export default async function NextWorkflowPage({
   // check if already scheduled
   const existingNext = await prisma.booking.findFirst({
     where: { parentBookingId: booking.id },
-    include: { tracker: { select: { slug: true } } },
+    select: { id: true },
   });
 
-  if (existingNext?.tracker?.slug) {
+  if (existingNext) {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center bg-background px-4">
         <div className="w-full max-w-md text-center">
@@ -61,14 +61,8 @@ export default async function NextWorkflowPage({
           <div className="mt-6 rounded-2xl bg-surface shadow-lg backdrop-blur-sm p-6">
             <p className="text-sm font-bold text-foreground">workflow already scheduled!</p>
             <p className="mt-2 text-xs text-muted">
-              your next workflow is already booked. track its progress below.
+              your next workflow is already booked. check your email for updates on its progress.
             </p>
-            <a
-              href={`/track/${existingNext.tracker.slug}`}
-              className="mt-4 inline-block rounded-lg bg-gradient-to-r from-primary to-secondary px-6 py-3 text-sm font-bold text-white shadow-md transition-all active:scale-[0.98] hover:shadow-lg"
-            >
-              view tracker
-            </a>
           </div>
         </div>
       </main>

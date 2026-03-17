@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@slushie/db";
 import { nanoid } from "nanoid";
-import bcrypt from "bcryptjs";
-import { generateTempPassword } from "@/lib/tracker-auth";
 import { createEventQueue, createEvent } from "@slushie/events";
 
 const pipelineQueue = createEventQueue("pipeline");
@@ -123,9 +121,6 @@ export async function POST(request: Request) {
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 30);
 
-    const tempPassword = generateTempPassword();
-    const passwordHash = await bcrypt.hash(tempPassword, 10);
-
     const steps = BOOKING_STEPS.map((s, i) => ({
       ...s,
       status: i === 0 ? "active" : "pending",
@@ -140,8 +135,6 @@ export async function POST(request: Request) {
         currentStep: 1,
         steps,
         expiresAt,
-        passwordHash,
-        mustChangePassword: true,
       },
     });
 
@@ -157,9 +150,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       ok: true,
-      trackingSlug: slug,
       bookingId: booking.id,
-      tempPassword,
       email: data.email,
       name: data.name,
       businessName: data.businessName,

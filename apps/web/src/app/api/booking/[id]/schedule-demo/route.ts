@@ -43,7 +43,6 @@ export async function POST(
       to: booking.email,
       name: booking.name,
       businessName: booking.businessName,
-      slug: tracker.slug,
       customBody: emailBody,
     }).catch((err) => console.error("[email] demo scheduling failed:", err));
 
