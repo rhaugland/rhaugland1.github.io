@@ -19,10 +19,14 @@ const BOOKING_STEPS = [
   { step: 2, label: "schedule discovery", subtitle: "your rep will reach out to schedule a discovery call." },
   { step: 3, label: "discovery meeting", subtitle: "let's walk through your workflow together." },
   { step: 4, label: "discovery build", subtitle: "building an improved version based on our conversation." },
-  { step: 5, label: "client build approval", subtitle: "your turn. take a look and let us know." },
-  { step: 6, label: "plug-in", subtitle: "connecting to your tools. almost there." },
-  { step: 7, label: "billing", subtitle: "invoice sent. simple and transparent." },
-  { step: 8, label: "satisfaction survey", subtitle: "how'd we do? we want to keep getting better." },
+  { step: 5, label: "schedule demo", subtitle: "your rep will reach out to schedule a demo of what we've built." },
+  { step: 6, label: "demo call", subtitle: "let's walk through the build together." },
+  { step: 7, label: "demo build", subtitle: "incorporating your feedback from the demo." },
+  { step: 8, label: "internal review", subtitle: "our team is reviewing and polishing." },
+  { step: 9, label: "client approval", subtitle: "take a look and let us know what you think." },
+  { step: 10, label: "plug-in", subtitle: "connecting to your tools. almost there." },
+  { step: 11, label: "payment", subtitle: "invoice sent. simple and transparent." },
+  { step: 12, label: "satisfaction survey", subtitle: "how'd we do? we want to keep getting better." },
 ];
 
 const planLabels: Record<string, string> = {

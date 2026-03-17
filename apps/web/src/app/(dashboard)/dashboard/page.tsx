@@ -9,9 +9,13 @@ const BOOKING_STEP_LABELS = [
   "schedule discovery",
   "discovery meeting",
   "discovery build",
-  "client build approval",
+  "schedule demo",
+  "demo call",
+  "demo build",
+  "internal review",
+  "client approval",
   "plug-in",
-  "billing",
+  "payment",
   "satisfaction survey",
   "postmortem",
 ];
@@ -202,14 +206,14 @@ export default async function DashboardPage() {
     return { status: "analyzing" };
   }
 
-  // group visible bookings by step — COMPLETED bookings go to step 9 (postmortem)
+  // group visible bookings by step — COMPLETED bookings go to step 13 (postmortem)
   const columns = BOOKING_STEP_LABELS.map((label, i) => {
     const step = i + 1;
     return {
       step,
       label,
       bookings: visibleBookings.filter((b) => {
-        if (step === 9) return b.status === "COMPLETED";
+        if (step === 13) return b.status === "COMPLETED";
         return b.status !== "COMPLETED" && (b.tracker?.currentStep ?? 0) === step;
       }),
     };
